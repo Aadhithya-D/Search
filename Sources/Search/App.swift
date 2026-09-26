@@ -54,6 +54,8 @@ struct SearchApp: App {
                 // other way in opens too.
                 Button("Bring Things Over…") { browser.bringingIn = "" }
                     .shortcut("file.import")
+                // Fork: each profile into a space of its own (Fork/ProfileImport.swift).
+                Button("Import Profiles into Spaces…") { browser.askToImportProfiles() }
                 Divider()
                 Button("Close Tab") { if let tab = browser.active { browser.close(tab) } }
                     .shortcut("file.closeTab")
