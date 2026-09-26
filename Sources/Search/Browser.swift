@@ -2346,13 +2346,9 @@ final class Browser: NSObject, ObservableObject {
         bookmarksOpen = false
         bookmarking = false
         let url = Browser.page(url)
+        // Its page already open: back to it, wherever it had got to. Only
+        // closing it sends the next click to the bookmarked address.
         if let existing = tabs.first(where: { $0.bookmark == id }) {
-            let showing = existing.pending ?? existing.address
-            if existing.asleep {
-                existing.aim(url)
-            } else if showing != url {
-                existing.go(to: url)
-            }
             if existing.id == activeID {
                 if existing.asleep { existing.wake() }
             } else {
