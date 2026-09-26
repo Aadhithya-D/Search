@@ -19,6 +19,9 @@ enum Session {
         var pinID: UUID? = nil
         /// A pin kept as a row (see Tab.listed). Nil for a square.
         var listed: Bool? = nil
+        /// Set when the tab is a sidebar bookmark's own page, so it comes
+        /// back in that row and not in the tab list.
+        var bookmark: UUID?
     }
 
     struct Shape: Codable {

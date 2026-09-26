@@ -226,7 +226,8 @@ struct TabBar: View {
             let row = space.id == browser.spaceID
                 ? Parked(tabs: browser.tabs, active: browser.activeID, splits: browser.splits)
                 : browser.parked[space.id] ?? Parked(tabs: [], active: nil)
-            let shown = rowTabs(row.tabs, splits: row.splits)
+            // Fork: a bookmark's page isn't in the row (Fork/BookmarkPages.swift).
+            let shown = rowTabs(row.tabs.filter { $0.bookmark == nil }, splits: row.splits)
             let each = width(in: strip, tabs: shown, splits: row.splits)
             HStack(spacing: Metrics.tabGap) {
                 ForEach(shown) { tab in

@@ -202,10 +202,10 @@ struct SearchApp: App {
                     let rows = browser.prefs.showsPinRows
                     if tab.pin == nil {
                         Button("Pin Tab") { browser.pin(tab) }
-                            .disabled(tab.isBlank || tab.shy)
+                            .disabled(tab.isBlank || tab.shy || tab.bookmark != nil)  // Fork: Fork/BookmarkPages.swift
                         if rows {
                             Button("Pin Tab as Row") { browser.pin(tab, listed: true) }
-                                .disabled(tab.isBlank || tab.shy)
+                                .disabled(tab.isBlank || tab.shy || tab.bookmark != nil)  // Fork: Fork/BookmarkPages.swift
                         }
                     } else {
                         if rows {
