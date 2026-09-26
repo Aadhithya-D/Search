@@ -42,6 +42,11 @@ final class Bookmarks: ObservableObject {
     /// A folder a page was just filed into, so the column can open it and
     /// show where the page landed (Fork/BookmarkFolders.swift).
     @Published var reveal: Bookmark.ID?
+    /// Fork: the folders open in the column, in every space, as they were
+    /// left (Fork/SideMarks.swift). Ids are never shared between spaces.
+    @Published var opened: Set<Bookmark.ID> = Bookmarks.openedAtLaunch() {
+        didSet { Bookmarks.keepOpened(opened) }
+    }
 
     init() { load() }
 

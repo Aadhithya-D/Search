@@ -35,7 +35,15 @@ struct SideBar: View {
 
     // Fork: the bookmarks in the column (Fork/SideMarks.swift).
     /// Folders the column has opened.
-    @State var foldersOpen: Set<Bookmark.ID> = []
+    /// Kept by the bookmarks, not the view: the column that slides out
+    /// over the page is a new view each time, and every space its own list.
+    var foldersOpen: Set<Bookmark.ID> {
+        get { bookmarks.opened }
+        nonmutating set { bookmarks.opened = newValue }
+    }
+    var openFolders: Binding<Set<Bookmark.ID>> {
+        Binding(get: { bookmarks.opened }, set: { bookmarks.opened = $0 })
+    }
     /// Bookmark rows, measured in the column, for a tab dropped onto one.
     @State var spots: [MarkSpot] = []
     @State private var overSection = false
@@ -297,7 +305,7 @@ struct SideBar: View {
             section(browser.spaces.first { $0.id == space }, live: false)
             if !marksFolded.contains(space) {
                 SideMarks(
-                    browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: idleAim,
+                    browser: browser, bookmarks: bookmarks, open: openFolders, aim: idleAim,
                     tree: bookmarks.nodes(in: space),
                     tabs: row.tabs, active: row.active,
                     colour: browser.spaces.first { $0.id == space }?.colour
@@ -501,7 +509,7 @@ struct SideBar: View {
                     Button("Theme…") { theming = true }
                 }
             if !marksFolded.contains(browser.spaceID) {
-                SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
+                SideMarks(browser: browser, bookmarks: bookmarks, open: openFolders, aim: aim)
                     .transition(.opacity)
             }
             rule

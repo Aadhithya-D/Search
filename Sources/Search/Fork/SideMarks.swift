@@ -567,3 +567,13 @@ private struct SectionHeader: View {
         .help(folded ? "Show Bookmarks" : "Hide Bookmarks")
     }
 }
+
+extension Bookmarks {
+    static func openedAtLaunch() -> Set<Bookmark.ID> {
+        Set((Store.settings.stringArray(forKey: "column.folders.open") ?? []).compactMap(UUID.init))
+    }
+
+    static func keepOpened(_ opened: Set<Bookmark.ID>) {
+        Store.settings.set(opened.map(\.uuidString).sorted(), forKey: "column.folders.open")
+    }
+}
