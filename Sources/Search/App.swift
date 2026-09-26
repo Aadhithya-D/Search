@@ -307,6 +307,7 @@ struct ContentView: View {
     /// animation (see `make(room:after:)`); nil only before the window is up.
     @State private var room: CGSize?
     @State private var roomTicket = 0
+    @Environment(\.colorScheme) var windowScheme
 
 
     /// The window: room at the top, one stage for the page, and the row when
@@ -315,7 +316,17 @@ struct ContentView: View {
         ZStack(alignment: sideOnRight ? .topTrailing : .topLeading) {
             // Black while a page has the screen, so the frame of our own window
             // that survives the transition is not a white band across the top.
-            (browser.active?.immersed == true ? Color.black : Palette.ground)
+            // Fork: with the column, that frame is the space's own colour,
+            // and the page sits inside it (Fork/ColumnColour.swift).
+            if browser.active?.immersed == true {
+                Color.black
+            } else if framed {
+                Spaces.ground(browser.space)
+                    .environment(\.colorScheme, groundScheme)
+                Grain().environment(\.colorScheme, groundScheme)
+            } else {
+                Palette.ground
+            }
 
             // One stage, always. It starts beside the column and under the
             // strip, not behind them — a page sliding beneath floating chrome
@@ -326,6 +337,31 @@ struct ContentView: View {
             // again thirty times a second, the page juddered along its right
             // edge and overshot the window with the spring (see `room`).
             stage
+                // Beside the column the page is a card on the space's colour,
+                // its corners rounded as Arc's are. The web view is AppKit and
+                // is rounded by its own layer (see StageView); this clips what
+                // SwiftUI draws over it, and lays a soft edge beneath.
+                .clipShape(RoundedRectangle(cornerRadius: pageCorner, style: .continuous))
+                .overlay {
+                    if framed {
+                        RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
+                            .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.5)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .background {
+                    if framed {
+                        RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
+                            .fill(Palette.ground)
+                            .shadow(color: .black.opacity(0.10), radius: 3, y: 1)
+                    }
+                }
+                .padding(.top, gutterTop)
+                .padding(.bottom, gutter)
+                // The column's own margin is the air on its side; folded
+                // away, the page keeps the thin frame there too.
+                .padding(.leading, sideOnRight || !sidebar ? gutter : 0)
+                .padding(.trailing, sideOnRight && sidebar ? 0 : gutter)
                 .padding(.leading, sideOnRight ? 0 : roomed.width)
                 .padding(.trailing, sideOnRight ? roomed.width : 0)
                 .padding(.top, roomed.height)
@@ -358,6 +394,9 @@ struct ContentView: View {
         .ignoresSafeArea()
         .animation(Motion.glide, value: browser.prefs.sidebar)
         .animation(Motion.glide, value: browser.prefs.sidePosition)
+        .onChange(of: browser.prefs.sidebar) { _, _ in paintChrome(window) }
+        .onChange(of: browser.space) { _, _ in paintChrome(window) }
+        .onChange(of: browser.spaceID) { _, _ in paintChrome(window) }
         .animation(.easeOut(duration: 0.12), value: browser.active?.immersed)
         .onAppear { if room == nil { room = chrome } }
         .onChange(of: chrome) { old, new in make(room: new, after: old) }
@@ -366,7 +405,7 @@ struct ContentView: View {
     @ViewBuilder
     private var stage: some View {
         if let tab = browser.active {
-            Page(tab: tab)
+            Page(tab: tab, corner: pageCorner)
                 .overlay {
                     if browser.prefs.showsLinks { LinkBubble(status: browser.linkStatus) }
                 }
@@ -763,7 +802,7 @@ struct ContentView: View {
     }
 
     /// True while the tabs are down the left, and not folded away (see Fold.swift).
-    private var sidebar: Bool {
+    var sidebar: Bool {
         browser.prefs.sidebar && !browser.folded && browser.active?.immersed != true
     }
 
@@ -773,6 +812,10 @@ struct ContentView: View {
         guard browser.active?.immersed != true else { return 0 }
         // Folded, the strip is out of the window and the page has its height.
         return browser.prefs.sidebar || browser.folded ? 0 : Metrics.strip
+    }
+
+    private func paintChrome(_ window: NSWindow?) {
+        window?.backgroundColor = browser.prefs.sidebar ? Spaces.nsGround(browser.space) : Palette.NS.ground
     }
 
     /// Put the resting circles in the title bar, exactly over the buttons.
@@ -802,7 +845,7 @@ struct ContentView: View {
         // window only has to be the ground colour that goes with it.
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.backgroundColor = Palette.NS.ground
+        paintChrome(window)
         // The strip does the dragging, so the page underneath can't be grabbed
         // by accident while selecting text.
         window.isMovableByWindowBackground = false

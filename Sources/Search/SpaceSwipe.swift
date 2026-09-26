@@ -250,7 +250,7 @@ struct NewSpaceCard: View {
                             .foregroundStyle(Palette.ink)
                         Text("Its own tabs.")
                             .font(.system(size: 11))
-                            .foregroundStyle(Palette.muted)
+                            .foregroundStyle(Palette.quiet)
                             .multilineTextAlignment(.center)
                     }
                     field
@@ -260,7 +260,7 @@ struct NewSpaceCard: View {
                         Segmented(options: [(true, "Signed in"), (false, "Signed out")], selection: $shared, wide: true)
                         Text(saying)
                             .font(.system(size: 11))
-                            .foregroundStyle(Palette.muted)
+                            .foregroundStyle(Palette.quiet)
                             .multilineTextAlignment(.center)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -290,7 +290,7 @@ struct NewSpaceCard: View {
                 .frame(width: box.width, height: box.height)
                 .background(
                     RoundedRectangle(cornerRadius: inline ? 8 : 10, style: .continuous)
-                        .fill(hovering || choosing ? Palette.hover : .clear)
+                        .fill(hovering || choosing ? Palette.veil : .clear)
                 )
                 .contentShape(Rectangle())
                 .id(icon)
@@ -308,7 +308,7 @@ struct NewSpaceCard: View {
             .font(.system(size: inline ? 12.5 : 13))
             .padding(.horizontal, 10)
             .frame(height: inline ? 26 : 30)
-            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.wash))
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Palette.veilStrong))
             .focused($typing)
             .onSubmit(create)
     }
@@ -320,11 +320,11 @@ struct NewSpaceCard: View {
             ForEach(Array(zip(Spaces.icons, Spaces.iconNames)), id: \.0) { symbol, name in
                 Image(systemName: symbol)
                     .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(symbol == icon ? Palette.ink : Palette.muted)
+                    .foregroundStyle(symbol == icon ? Palette.ink : Palette.quiet)
                     .frame(width: 28, height: 28)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(symbol == icon ? Palette.wash : .clear)
+                            .fill(symbol == icon ? Palette.veilStrong : .clear)
                     )
                     .contentShape(Rectangle())
                     .onTapGesture {

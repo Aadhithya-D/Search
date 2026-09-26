@@ -11,9 +11,15 @@ import WebKit
 /// what turns that into a redraw.
 struct Page: View {
     @ObservedObject var tab: Tab
+    /// The page's corners, when it sits as a card beside the column.
+    var corner: CGFloat = 0
 
     var body: some View {
         ZStack {
+            // A blank tab has no page to fill the card, so the card is the
+            // ground the field in the middle was made for.
+            if tab.isBlank { Palette.ground }
+
             // A tab put down with ⌘W has no view, and asking for one here
             // would build an empty one a frame before the stage moves on.
             //
@@ -21,7 +27,7 @@ struct Page: View {
             // before and after the float changes nothing SwiftUI can see, so
             // the stage was never told to take it back when it landed, and
             // the tab stayed empty. Nothing, then the page, is a change.
-            WebStage(page: tab.isBlank || tab.asleep || tab.floating ? nil : tab.web)
+            WebStage(page: tab.isBlank || tab.asleep || tab.floating ? nil : tab.web, corner: corner)
 
             if let cover = tab.cover {
                 // The page as it was left, while it is rebuilt underneath —
@@ -195,10 +201,12 @@ private struct HistoryList: View {
 /// reload, no lost scroll position, no forgotten form.
 struct WebStage: NSViewRepresentable {
     let page: NSView?
+    var corner: CGFloat = 0
 
     func makeNSView(context: Context) -> StageView { StageView() }
 
     func updateNSView(_ view: StageView, context: Context) {
+        view.round(corner)
         view.show(page)
     }
 }
@@ -227,6 +235,16 @@ final class StageView: NSView {
     override func layout() {
         super.layout()
         settle()
+    }
+
+    /// Rounded by the layer, which clips the web view inside it too — a
+    /// SwiftUI clip alone doesn't reach into an AppKit view.
+    func round(_ radius: CGFloat) {
+        wantsLayer = true
+        guard let layer, layer.cornerRadius != radius else { return }
+        layer.cornerRadius = radius
+        layer.cornerCurve = .continuous
+        layer.masksToBounds = radius > 0
     }
 
     func show(_ page: NSView?) {
