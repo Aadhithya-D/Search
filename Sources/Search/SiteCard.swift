@@ -79,7 +79,7 @@ enum SiteCardPanel {
             SiteCardPanel.hide()
             browser.cancelTabEdit()
         }
-        let host = FirstClick(rootView: AnyView(card.fixedSize()))
+        let host = FirstClick(rootView: AnyView(card.fixedSize().popGround()))
         let size = host.fittingSize
         let glass = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
         glass.material = .menu

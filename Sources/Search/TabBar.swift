@@ -133,7 +133,7 @@ struct TabBar: View {
                             .padding(.trailing, 8)
                         Door(icon: "bookmark", help: "Bookmarks") { browser.bookmarksOpen.toggle() }
                             .popover(isPresented: $browser.bookmarksOpen, arrowEdge: .bottom) {
-                                BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks)
+                                BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks).popGround()
                             }
                     }
                     .background {

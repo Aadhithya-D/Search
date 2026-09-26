@@ -441,7 +441,7 @@ struct SideBar: View {
             ExtensionSlot(edge: .trailing)
             Door(icon: "bookmark", help: "Bookmarks") { browser.bookmarksOpen.toggle() }
                 .popover(isPresented: $browser.bookmarksOpen, arrowEdge: .trailing) {
-                    BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks)
+                    BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks).popGround()
                 }
             Spacer(minLength: 0)
         }
