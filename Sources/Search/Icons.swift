@@ -56,6 +56,12 @@ final class Favicons {
             absent.insert(key)
             return nil
         }
+        // Fork: one kept empty before that was checked goes, so it is fetched again.
+        guard image.hasInk else {
+            try? FileManager.default.removeItem(at: Favicons.file(key))
+            absent.insert(key)
+            return nil
+        }
         memory[key] = image
         return image
     }
@@ -181,7 +187,8 @@ final class Favicons {
                 fraction: 1
             )
             out.unlockFocus()
-            return out
+            // Fork: an icon with nothing visible in it is no icon (Fork/IconInk.swift).
+            return out.hasInk ? out : nil
         }.value
     }
 
