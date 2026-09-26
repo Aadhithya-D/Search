@@ -31,9 +31,60 @@ struct Bookmark: Codable, Identifiable, Hashable {
 
 @MainActor
 final class Bookmarks: ObservableObject {
+    /// The space on screen. Each space keeps its own list.
+    private var space = Space.firstID
+    private var trees: [UUID: [Bookmark]] = [:]
+    /// The file was still one list for every space. It stays with whichever
+    /// space is on screen the first time that space is asked for.
+    private var carried = false
     @Published private(set) var roots: [Bookmark] = []
 
     init() { load() }
+
+    /// The list a space keeps. The one on screen is `roots`.
+    func nodes(in id: UUID) -> [Bookmark] {
+        id == space ? roots : (trees[id] ?? [])
+    }
+
+    /// Another space is on screen. Its list comes up; the one leaving is kept.
+    func use(_ id: UUID) {
+        if carried {
+            carried = false
+            trees = [id: roots]
+            space = id
+            save()
+            return
+        }
+        guard id != space else { return }
+        trees[space] = roots
+        space = id
+        roots = trees[id] ?? []
+    }
+
+    /// A space is gone, and so is its list.
+    func forget(_ id: UUID) {
+        guard id != Space.firstID else { return }
+        trees[id] = nil
+        if space == id {
+            space = Space.firstID
+            roots = trees[space] ?? []
+        }
+        save()
+    }
+
+    /// Every id in the list on screen, so a page filed under a bookmark from
+    /// another space can go back to being an ordinary tab.
+    var identifiers: Set<Bookmark.ID> {
+        var ids = Set<Bookmark.ID>()
+        func walk(_ nodes: [Bookmark]) {
+            for node in nodes {
+                ids.insert(node.id)
+                if let kids = node.children { walk(kids) }
+            }
+        }
+        walk(roots)
+        return ids
+    }
 
     var isEmpty: Bool { roots.isEmpty }
 
@@ -62,6 +113,15 @@ final class Bookmarks: ObservableObject {
     }
 
     // MARK: - changing
+
+    /// A folder with nothing in it yet, at the top level or inside another.
+    /// The name is whatever was typed; a blank one is still a folder you
+    /// can find, called Folder.
+    @discardableResult
+    func makeFolder(_ title: String, into parent: Bookmark.ID? = nil) -> Bookmark {
+        let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return insert(.folder(name.isEmpty ? "Folder" : name, []), into: parent)
+    }
 
     /// The page, at the end of the list. Nothing is asked: the title is the
     /// page's, and filing it into a folder is a drag or a right-click away.
@@ -209,15 +269,28 @@ final class Bookmarks: ObservableObject {
 
     private func load() {
         guard let data = try? Data(contentsOf: Bookmarks.file) else { return }
-        guard let list = try? JSONDecoder().decode([Bookmark].self, from: data) else {
+        let decoder = JSONDecoder()
+        // Each space has its own list. A file from before that is the one
+        // list there was, and it stays with the space on screen.
+        if let trees = try? decoder.decode([UUID: [Bookmark]].self, from: data) {
+            self.trees = trees
+            roots = trees[space] ?? []
+        } else if let list = try? decoder.decode([Bookmark].self, from: data) {
+            carried = true
+            roots = list
+        } else {
             Store.quarantine(Bookmarks.file)
-            return
         }
-        roots = list
     }
 
     private func save() {
-        let snapshot = roots
+        if carried {
+            carried = false
+            trees = [space: roots]
+        } else {
+            trees[space] = roots
+        }
+        let snapshot = trees
         let file = Bookmarks.file
         DispatchQueue.global(qos: .utility).async {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
@@ -423,6 +496,9 @@ struct BookmarksDropdown: View {
             Divider().overlay(Palette.hairline)
             VStack(spacing: 1) {
                 Foot("bookmark", "Add This Page") { browser.bookmarkCurrent() }
+                Foot("folder.badge.plus", "New Folder") {
+                    Ask.name("New Folder", placeholder: "Name", confirm: "Create") { bookmarks.makeFolder($0) }
+                }
                 Foot(nil, "Manage Bookmarks…") { browser.bookmarking = true }
             }
             .padding(6)
@@ -489,6 +565,9 @@ struct BookmarksPanel: View {
             }
         } foot: {
             HStack(spacing: 8) {
+                Pill("New Folder") {
+                    Ask.name("New Folder", placeholder: "Name", confirm: "Create") { bookmarks.makeFolder($0) }
+                }
                 Text("Bring in from")
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.muted)

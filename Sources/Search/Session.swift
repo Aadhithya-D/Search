@@ -11,6 +11,9 @@ enum Session {
         var pin: String?
         /// The name you gave the tab, when you gave it one.
         var name: String?
+        /// Set when the tab is a sidebar bookmark's own page, so it comes
+        /// back in that row and not in the tab list.
+        var bookmark: UUID?
     }
 
     struct Shape: Codable {

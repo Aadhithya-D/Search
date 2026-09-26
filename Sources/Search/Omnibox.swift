@@ -59,7 +59,7 @@ struct Omnibox: View {
     }
 
     private var field: some View {
-        AddressField(browser: browser)
+        AddressField(browser: browser, prompt: browser.prefs.searchPrompt)
             .frame(height: 22)
             .padding(.horizontal, 22)
             .padding(.vertical, 14)
@@ -259,6 +259,7 @@ struct AddressField: NSViewRepresentable {
     /// The bar under the lights wants a smaller face than the field that
     /// stands alone in the middle of an empty tab.
     var point: CGFloat = 15.5
+    var prompt: String = "Enter a web address"
 
     func makeCoordinator() -> Coordinator { Coordinator(browser: browser) }
 
@@ -275,19 +276,27 @@ struct AddressField: NSViewRepresentable {
         field.cell?.wraps = false
         // SwiftUI picks its own colour for a placeholder, and on a pale ground
         // that colour was near-white.
-        field.placeholderAttributedString = NSAttributedString(
-            string: "Enter a web address",
+        field.placeholderAttributedString = placeholder(prompt, point: point)
+        return field
+    }
+
+    private func placeholder(_ text: String, point: CGFloat) -> NSAttributedString {
+        NSAttributedString(
+            string: text,
             attributes: [
                 .font: NSFont.systemFont(ofSize: point),
                 .foregroundColor: NSColor(Palette.ink.opacity(0.3)),
             ]
         )
-        return field
     }
 
     func updateNSView(_ field: NSTextField, context: Context) {
         let coordinator = context.coordinator
         coordinator.browser = browser
+        if coordinator.prompt != prompt {
+            coordinator.prompt = prompt
+            field.placeholderAttributedString = placeholder(prompt, point: point)
+        }
 
         // Only when something other than typing changed it — ⌘L arriving with
         // an address, a walk through the list, a submit clearing it.
@@ -324,6 +333,7 @@ struct AddressField: NSViewRepresentable {
     final class Coordinator: NSObject, NSTextFieldDelegate {
         var browser: Browser
         var answered = -1
+        var prompt = ""
         /// The last value pushed in from the browser side, so an update can
         /// tell a change worth applying from one it made itself.
         var synced = ""

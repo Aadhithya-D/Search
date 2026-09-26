@@ -46,31 +46,29 @@ struct SideBar: View {
             // would take the click first.
             DragStrip(reserved: 0, below: browser.makingSpace ? .greatestFiniteMagnitude : rowsEnd)
 
-            // The band the lights sit in is this mode's title bar: the window
-            // is dragged by it and a double-click fills the screen with it,
-            // everywhere but over the three doors, which take their own
-            // clicks. The lights are the title bar's own and answer first.
+            // The band the lights sit in, on the left only: the window is
+            // dragged by it and a double-click fills the screen with it.
+            // The lights are the title bar's own and answer first. On the
+            // right the column has no lights — they stay in the address bar.
             HStack(spacing: 0) {
-                DragStrip()
-                    .frame(width: 10 + Metrics.sideLights)
-                Color.clear
-                    .frame(width: Metrics.helm)
-                    .allowsHitTesting(false)
+                if !prefs.sideRight {
+                    DragStrip()
+                        .frame(width: 10 + Metrics.sideLights)
+                }
                 DragStrip()
             }
-            .frame(height: Metrics.strip)
+            .frame(height: URLBar.height)
 
             VStack(alignment: .leading, spacing: 0) {
-                // The traffic lights' corner, with back, forward and reload
-                // sitting right of them — the same three doors as the top
-                // bar, moved beside the lights since there's no far end of a
-                // row to put them at in this mode.
+                // The traffic lights' corner, when the column is on the left.
+                // Back, forward and reload live in the address bar beside it.
                 HStack(spacing: 0) {
-                    Color.clear.frame(width: Metrics.sideLights)
-                    Helm(browser: browser)
+                    if !prefs.sideRight {
+                        Color.clear.frame(width: Metrics.sideLights)
+                    }
                     Spacer(minLength: 0)
                 }
-                .frame(height: Metrics.strip)
+                .frame(height: URLBar.height)
 
                 // The spaces side by side, as pages: two fingers sideways move
                 // the one on screen and the next one together, the next one
@@ -94,10 +92,10 @@ struct SideBar: View {
         .clipped()
         .onAppear { SpaceSwipe.shared.start(for: browser) }
         .background(landing ? Palette.hover : Palette.ground)
-        .overlay(alignment: .trailing) {
+        .overlay(alignment: prefs.sideRight ? .leading : .trailing) {
             Rectangle().fill(Palette.hairline).frame(width: 1)
         }
-        .overlay(alignment: .trailing) { edge }
+        .overlay(alignment: prefs.sideRight ? .leading : .trailing) { edge }
         .onDrop(of: [.url, .text], isTargeted: $landing) { providers in
             browser.take(providers)
         }
@@ -125,7 +123,8 @@ struct SideBar: View {
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
                         if grabbed == nil { grabbed = prefs.sideWidth }
-                        let wanted = (grabbed ?? prefs.sideWidth) + value.translation.width
+                        let delta = prefs.sideRight ? -value.translation.width : value.translation.width
+                        let wanted = (grabbed ?? prefs.sideWidth) + delta
                         prefs.sideWidth = min(Metrics.sideMax, max(Metrics.sideMin, wanted))
                     }
                     .onEnded { _ in grabbed = nil }
@@ -217,7 +216,7 @@ struct SideBar: View {
                     }
                 }
             } else {
-                preview(browser.parked[browser.spaces[index].id] ?? Parked(tabs: [], active: nil), pill: pill)
+                preview(browser.parked[browser.spaces[index].id] ?? Parked(tabs: [], active: nil), space: browser.spaces[index].id, pill: pill)
             }
         }
         .padding(.horizontal, 10)
@@ -227,9 +226,9 @@ struct SideBar: View {
     /// Another space's rows, drawn with the same pieces as this one's so the
     /// two read as one column while they pass — and nothing to press until
     /// it is the one on screen.
-    private func preview(_ row: Parked, pill: Namespace.ID) -> some View {
+    private func preview(_ row: Parked, space: UUID, pill: Namespace.ID) -> some View {
         let pins = row.tabs.filter { $0.pin != nil }
-        let rest = row.tabs.filter { $0.pin == nil }
+        let rest = row.tabs.filter { $0.pin == nil && $0.bookmark == nil }
         let cols = SideBar.pinColumns(pins.count)
         let width = pinWidth(for: pins.count)
         let height = min(SideBar.square, width)
@@ -246,7 +245,11 @@ struct SideBar: View {
                 .padding(.bottom, 8)
             }
             section("Bookmarks")
-            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen)
+            SideMarks(
+                browser: browser, bookmarks: bookmarks, open: $foldersOpen,
+                tree: bookmarks.nodes(in: space),
+                tabs: row.tabs, active: row.active
+            )
             section("Tabs")
             newTab
             VStack(spacing: SideBar.gap) {
@@ -267,17 +270,18 @@ struct SideBar: View {
         let pinRows = pins == 0 ? 0 : (pins + cols - 1) / cols
         let pinBlock = pinRows == 0 ? 0
             : CGFloat(pinRows) * pinHeight + CGFloat(pinRows - 1) * SideBar.pinGap + 8
-        let loose = CGFloat(browser.tabs.count - pins) * (SideBar.row + SideBar.gap)
+        let looseCount = browser.tabs.filter { $0.pin == nil && $0.bookmark == nil }.count
+        let loose = CGFloat(looseCount) * (SideBar.row + SideBar.gap)
         let marks = CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty))
             * (SideBar.row + SideBar.gap)
-        // Two section titles, the bookmark rows, the loose tabs, and New Tab.
-        return Metrics.strip + pinBlock + SideBar.section * 2 + marks + loose + SideBar.row + 16
+        // Two section titles, New Folder, the bookmark rows, the loose tabs, and New Tab.
+        return URLBar.height + pinBlock + SideBar.section * 2 + marks + loose + (SideBar.row + SideBar.gap) * 2 + 16
     }
 
     // MARK: - the pinned squares
 
     private var pinnedTabs: [Tab] { browser.tabs.filter { $0.pin != nil } }
-    private var looseTabs: [Tab] { browser.tabs.filter { $0.pin == nil } }
+    private var looseTabs: [Tab] { browser.tabs.filter { $0.pin == nil && $0.bookmark == nil } }
 
     /// Three columns is the block's own shape — up to six pins, that's two
     /// full rows, and one or two is just those same three places with a
@@ -434,6 +438,12 @@ struct SideBar: View {
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
             section("Bookmarks")
+            Quiet(icon: "folder.badge.plus", title: "New Folder", height: SideBar.row) {
+                Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
+                    let made = bookmarks.makeFolder(title)
+                    foldersOpen.insert(made.id)
+                }
+            }
             SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen)
             section("Tabs")
             newTab
@@ -463,9 +473,8 @@ struct SideBar: View {
     private var foot: some View {
         HStack(spacing: 2) {
             if browser.prefs.usesSpaces { SpaceDot(browser: browser) }
-            ExtensionSlot(edge: .trailing)
             Door(icon: "bookmark", help: "Bookmarks") { browser.bookmarksOpen.toggle() }
-                .popover(isPresented: $browser.bookmarksOpen, arrowEdge: .trailing) {
+                .popover(isPresented: $browser.bookmarksOpen, arrowEdge: browser.prefs.sideRight ? .leading : .trailing) {
                     BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks)
                 }
             Spacer(minLength: 0)
@@ -483,9 +492,16 @@ private struct SideMarks: View {
     @ObservedObject var browser: Browser
     @ObservedObject var bookmarks: Bookmarks
     @Binding var open: Set<Bookmark.ID>
+    /// Another space's list and pages, while that space is sliding past.
+    /// Absent, this is the space on screen.
+    var tree: [Bookmark]? = nil
+    var tabs: [Tab]? = nil
+    var active: Tab.ID? = nil
+
+    private var shown: [Bookmark] { tree ?? bookmarks.roots }
 
     var body: some View {
-        if bookmarks.isEmpty {
+        if shown.isEmpty {
             Text("No bookmarks yet")
                 .font(.system(size: 12))
                 .foregroundStyle(Palette.faint)
@@ -493,7 +509,7 @@ private struct SideMarks: View {
                 .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
         } else {
             VStack(alignment: .leading, spacing: SideBar.gap) {
-                rows(bookmarks.roots, depth: 0)
+                rows(shown, depth: 0)
             }
         }
     }
@@ -522,15 +538,21 @@ private struct SideMarks: View {
     }
 
     private func folder(_ node: Bookmark, depth: Int) -> some View {
-        let opened = open.wrappedValue.contains(node.id)
+        let opened = open.contains(node.id)
         let kids = node.children ?? []
         return VStack(alignment: .leading, spacing: SideBar.gap) {
-            line(node, depth: depth, folder: true, opened: opened) {
+            line(node, depth: depth, folder: true, opened: opened, live: false, close: nil, newFolder: {
+                Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
+                    let made = bookmarks.makeFolder(title, into: node.id)
+                    open.insert(node.id)
+                    open.insert(made.id)
+                }
+            }) {
                 withAnimation(Motion.quick) {
                     if opened {
-                        open.wrappedValue.remove(node.id)
+                        open.remove(node.id)
                     } else {
-                        open.wrappedValue.insert(node.id)
+                        open.insert(node.id)
                     }
                 }
             }
@@ -557,9 +579,21 @@ private struct SideMarks: View {
     }
 
     private func site(_ node: Bookmark, depth: Int) -> some View {
-        line(node, depth: depth, folder: false, opened: false) {
+        let pool = tabs ?? browser.tabs
+        let openTab = pool.first { $0.bookmark == node.id }
+        let liveID = tabs == nil ? browser.activeID : active
+        return line(
+            node, depth: depth, folder: false, opened: false,
+            live: openTab?.id == liveID,
+            close: openTab.map { tab in { browser.close(tab) } },
+            newFolder: nil
+        ) {
             guard let text = node.url, let url = URL(string: text) else { return }
-            browser.pickBookmark(url)
+            if NSApp.currentEvent?.modifierFlags.contains(.command) == true {
+                _ = browser.open(url, foreground: true)
+            } else {
+                browser.openBookmark(node.id, url)
+            }
         }
     }
 
@@ -568,9 +602,16 @@ private struct SideMarks: View {
         depth: Int,
         folder: Bool,
         opened: Bool,
+        live: Bool,
+        close: (() -> Void)?,
+        newFolder: (() -> Void)?,
         act: @escaping () -> Void
     ) -> some View {
-        Line(node: node, depth: depth, folder: folder, opened: opened, act: act) {
+        Line(
+            node: node, depth: depth, folder: folder, opened: opened, live: live,
+            act: act, close: close, newFolder: newFolder
+        ) {
+            if let close { close() }
             bookmarks.remove(node.id)
         } openNew: {
             guard let text = node.url, let url = URL(string: text) else { return }
@@ -585,11 +626,22 @@ private struct SideMarks: View {
         let depth: Int
         let folder: Bool
         let opened: Bool
+        let live: Bool
         let act: () -> Void
+        let close: (() -> Void)?
+        let newFolder: (() -> Void)?
         let remove: () -> Void
         let openNew: () -> Void
 
         @State private var hovering = false
+
+        /// The same quiet as a tab you are not on. A folder stays readable;
+        /// a page does not, until it is the one open.
+        private var title: Color {
+            if folder { return hovering ? Palette.ink : Palette.ink.opacity(0.9) }
+            if live { return Palette.ink }
+            return hovering ? Palette.ink.opacity(0.7) : Palette.muted
+        }
 
         var body: some View {
             HStack(spacing: 8) {
@@ -604,10 +656,11 @@ private struct SideMarks: View {
                         letter: String((node.host ?? "•").prefix(1)).uppercased(),
                         size: 15
                     )
+                    .opacity(live ? 1 : 0.72)
                 }
                 Text(node.title)
                     .font(.system(size: 12.5))
-                    .foregroundStyle(hovering ? Palette.ink : Palette.ink.opacity(folder ? 1 : 0.9))
+                    .foregroundStyle(title)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -623,15 +676,42 @@ private struct SideMarks: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(hovering && !opened ? Palette.wash : Color.clear)
+                    .fill(live ? Palette.wash : (hovering && !opened ? Palette.hover : Color.clear))
             )
             .contentShape(Rectangle())
             .onTapGesture(perform: act)
             .onHover { hovering = $0 }
+            .overlay(alignment: .trailing) {
+                // A real view, not a SwiftUI button: the row's own tap was
+                // winning the click, so the cross reopened the page it had
+                // just closed. The target is the whole end of the row.
+                if let close, hovering {
+                    ZStack {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(Palette.muted)
+                            .frame(width: 15, height: 15)
+                            .background(Palette.ink.opacity(0.07), in: Circle())
+                            .allowsHitTesting(false)
+                        BookmarkClose(act: close)
+                            .frame(width: 32, height: SideBar.row)
+                    }
+                    .padding(.trailing, 4)
+                }
+            }
+            .overlay {
+                if let close { MiddleClick(act: close) }
+            }
             .contextMenu {
                 if !folder {
                     Button("Open", action: act)
                     Button("Open in New Tab", action: openNew)
+                    if let close {
+                        Button("Close", action: close)
+                    }
+                }
+                if let newFolder {
+                    Button("New Folder", action: newFolder)
                 }
                 Button("Remove", role: .destructive, action: remove)
             }
@@ -639,6 +719,33 @@ private struct SideMarks: View {
             .animation(Motion.quick, value: hovering)
             .animation(Motion.quick, value: opened)
         }
+    }
+}
+
+/// The cross on an open bookmark. An AppKit view is asked before the row's
+/// SwiftUI tap, so the click closes the page and does not also open it.
+private struct BookmarkClose: NSViewRepresentable {
+    let act: () -> Void
+
+    func makeNSView(context: Context) -> NSView { Catch(act: act) }
+    func updateNSView(_ view: NSView, context: Context) { (view as? Catch)?.act = act }
+
+    private final class Catch: NSView {
+        var act: () -> Void
+        init(act: @escaping () -> Void) {
+            self.act = act
+            super.init(frame: .zero)
+        }
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError() }
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            guard let event = NSApp.currentEvent,
+                  event.type == .leftMouseDown || event.type == .leftMouseUp
+            else { return nil }
+            return super.hitTest(point)
+        }
+
+        override func mouseDown(with event: NSEvent) { act() }
     }
 }
 

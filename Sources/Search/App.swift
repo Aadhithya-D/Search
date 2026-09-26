@@ -119,7 +119,7 @@ struct SearchApp: App {
                 if let tab = browser.active {
                     if tab.pin == nil {
                         Button("Pin Tab") { browser.pin(tab) }
-                            .disabled(tab.isBlank)
+                            .disabled(tab.isBlank || tab.bookmark != nil)
                     } else {
                         Button("Change Letter") { browser.editLetter(tab) }
                         Button("Unpin Tab") { browser.unpin(tab) }
@@ -147,6 +147,9 @@ struct SearchApp: App {
                 Button("Add This Page") { browser.bookmarkCurrent() }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
                     .disabled(browser.active?.isBlank ?? true)
+                Button("New Folder") {
+                    Ask.name("New Folder", placeholder: "Name", confirm: "Create") { browser.bookmarks.makeFolder($0) }
+                }
                 Button("Show Bookmarks…") { browser.bookmarking = true }
                 Toggle("Show Bookmarks Bar", isOn: Binding(
                     get: { browser.prefs.bookmarksBar },
@@ -286,17 +289,21 @@ struct ContentView: View {
             // again thirty times a second, the page juddered along its right
             // edge and overshot the window with the spring (see `room`).
             stage
-                .padding(.leading, roomed.width)
+                .padding(.leading, sideRight ? 0 : roomed.width)
+                .padding(.trailing, sideRight ? roomed.width : 0)
                 .padding(.top, roomed.height)
-                .offset(x: chrome.width - roomed.width, y: chrome.height - roomed.height)
+                .offset(
+                    x: sideRight ? roomed.width - chrome.width : chrome.width - roomed.width,
+                    y: chrome.height - roomed.height
+                )
 
             // The column of tabs, in the way that has one. It takes the full
-            // height, so the traffic lights sit in its own corner rather than
-            // over the page.
+            // height. On the left the traffic lights sit in its corner; on
+            // the right they stay in the address bar.
             if sidebar {
                 SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .transition(.move(edge: .leading))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: sideRight ? .topTrailing : .topLeading)
+                    .transition(.move(edge: sideRight ? .trailing : .leading))
             }
 
             if !browser.prefs.sidebar, !browser.folded, browser.active?.immersed != true {
@@ -307,22 +314,27 @@ struct ContentView: View {
             // The bookmarks bar, under the address.
             if barShown {
                 BookmarksBar(browser: browser, bookmarks: browser.bookmarks)
-                    .padding(.leading, chrome.width)
+                    .padding(.leading, sideRight ? 0 : chrome.width)
+                    .padding(.trailing, sideRight ? chrome.width : 0)
                     .padding(.top, band + urlBand)
                     .transition(.opacity)
             }
 
-            // The address, across the top of the page: beside the column it
-            // fills the lights' row, and under the strip it is its own band.
-            if urlShown {
-                URLBar(browser: browser, tall: sidebar)
-                    .padding(.leading, chrome.width)
+            // The address, across the top of the page. While it hides itself,
+            // Fold draws it over the page instead of reserving this band.
+            if urlShown, !browser.prefs.barHides {
+                URLBar(browser: browser, showsLights: reserveLights, showsChrome: browser.prefs.sidebar)
+                    .padding(.leading, sideRight ? 0 : chrome.width)
+                    .padding(.trailing, sideRight ? chrome.width : 0)
                     .padding(.top, band)
-                    .transition(.opacity)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .ignoresSafeArea()
         .animation(Motion.glide, value: browser.prefs.sidebar)
+        .animation(Motion.glide, value: browser.prefs.sideRight)
+        .animation(Motion.glide, value: browser.prefs.barHides)
+        .animation(Motion.glide, value: browser.barPeeking)
         .animation(.easeOut(duration: 0.12), value: browser.active?.immersed)
         .animation(Motion.quick, value: browser.offers.isEmpty)
         .onAppear { if room == nil { room = chrome } }
@@ -332,7 +344,16 @@ struct ContentView: View {
     @ViewBuilder
     private var stage: some View {
         if let tab = browser.active {
-            Page(tab: tab)
+                Page(tab: tab)
+                // A blank tab keeps the field in the middle, as well as the
+                // prompt in the bar. That field owns the suggestions, so the
+                // list under the bar stays away and the two don't both take
+                // the keyboard.
+                .overlay {
+                    if tab.isBlank {
+                        Omnibox(browser: browser, over: false)
+                    }
+                }
                 // A click on the page puts the address away. The bar used to
                 // dim the page and catch that click itself. The list sits in
                 // the same layer, above that catch, so a row still receives
@@ -344,10 +365,10 @@ struct ContentView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture { browser.dismiss() }
                         }
-                        if browser.fieldShowing, !browser.offers.isEmpty {
+                        if browser.fieldShowing, !browser.offers.isEmpty, !tab.isBlank {
                             OfferList(browser: browser)
                                 .padding(.horizontal, 12)
-                                .padding(.top, (barShown ? BookmarksBar.height : 0) + 6)
+                                .padding(.top, (barShown ? BookmarksBar.height : 0) + (browser.prefs.barHides ? URLBar.height : 0) + 6)
                                 .transition(.opacity)
                         }
                     }
@@ -383,7 +404,7 @@ struct ContentView: View {
     /// aren't folded away or under a video filling the screen.
     private var barShown: Bool {
         browser.prefs.bookmarksBar && !browser.bookmarks.isEmpty && !browser.folded
-            && browser.active?.immersed != true
+            && browser.active?.immersed != true && !sidebar
     }
 
     /// The room the page is laid out to leave them, which is not animated.
@@ -469,7 +490,7 @@ struct ContentView: View {
                     .onTapGesture { browser.reviewing = false }
                 HiddenPanel(browser: browser)
                     .padding(.top, chrome.height + 8)
-                    .padding(.trailing, 14)
+                    .padding(.trailing, (sideRight ? chrome.width : 0) + 14)
                     .transition(.scale(scale: 0.97, anchor: .topTrailing).combined(with: .opacity))
             }
             .ignoresSafeArea()
@@ -486,7 +507,8 @@ struct ContentView: View {
                 // Over the page only: the column, the strip and the bookmarks
                 // bar stay as they are, uncovered and in reach.
                 PeekLayer(browser: browser)
-                    .padding(.leading, chrome.width)
+                    .padding(.leading, sideRight ? 0 : chrome.width)
+                    .padding(.trailing, sideRight ? chrome.width : 0)
                     .padding(.top, chrome.height)
                     // From the window's own top edge, as the page is:
                     // the title bar's band is page too.
@@ -494,7 +516,8 @@ struct ContentView: View {
             }
             .overlay { panels }
             .background(WindowSetup { window = $0; dress($0) })
-            .onChange(of: browser.prefs.sidebar) { _, _ in
+            .onChange(of: browser.prefs.sidebar) { _, on in
+                Lights.retarget(band: on ? URLBar.height : Metrics.strip)
                 DispatchQueue.main.async { measureLights() }
             }
             // Stepping away to another app: macOS draws its own resting
@@ -694,12 +717,21 @@ struct ContentView: View {
     }
 
     /// The address bar. A video filling the screen takes it, the way it takes
-    /// the strip. Beside the column the bar is that row's height.
+    /// the strip. Hidden, it draws over the page instead of reserving this band.
     private var urlShown: Bool { browser.active?.immersed != true }
 
     private var urlBand: CGFloat {
-        guard urlShown else { return 0 }
-        return sidebar ? Metrics.strip : URLBar.height
+        guard urlShown, !browser.prefs.barHides else { return 0 }
+        return URLBar.height
+    }
+
+    /// The column is on the right. The page then gives up its trailing edge.
+    private var sideRight: Bool { browser.prefs.sideRight && browser.prefs.sidebar }
+
+    /// The bar includes the window's left edge, so the traffic lights have a
+    /// row in it. A column docked on the left already holds them.
+    private var reserveLights: Bool {
+        browser.prefs.sidebar && !(sidebar && !browser.prefs.sideRight)
     }
 
     /// Put the resting circles in the title bar, exactly over the buttons.
@@ -742,10 +774,11 @@ struct ContentView: View {
         // the real window came back at.
         window.setFrameAutosaveName(Store.world.map { "search (\($0))" } ?? "search")
 
-        // The traffic lights set in from the corner and centred in the strip's
-        // height, in both modes, without a toolbar's rounder corners — see
-        // Lights.swift. The column's first row is the strip's height too, so
-        // its three doors sit on the lights' line.
+        // The traffic lights set in from the corner and centred in whichever
+        // row is across the top, without a toolbar's rounder corners — see
+        // Lights.swift. The column's first row is that same height, so the
+        // buttons sit on its line when the column is holding them.
+        Lights.retarget(band: browser.prefs.sidebar ? URLBar.height : Metrics.strip)
         Lights.keep(window) { measureLights() }
         DispatchQueue.main.async { measureLights() }
 
@@ -937,7 +970,7 @@ struct ContentView: View {
             if number == 0 {
                 browser.resetZoom()
             } else {
-                browser.select(index: number == 9 ? browser.tabs.count - 1 : number - 1)
+                browser.select(index: number == 9 ? browser.rowTabs.count - 1 : number - 1)
             }
             return true
         }

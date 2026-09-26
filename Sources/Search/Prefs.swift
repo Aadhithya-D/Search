@@ -50,10 +50,20 @@ final class Preferences: ObservableObject {
     @Published var sidebar: Bool {
         didSet { store.set(sidebar, forKey: "sidebar") }
     }
-    /// The column folded away whenever the pointer isn't at the left edge,
+    /// The column folded away whenever the pointer isn't at its edge,
     /// rather than only after ⌘S (see Fold.swift). Off unless asked for.
     @Published var sideHides: Bool {
         didSet { store.set(sideHides, forKey: "sidebar.hides") }
+    }
+    /// The column on the right. The handle that brings it back follows it.
+    @Published var sideRight: Bool {
+        didSet { store.set(sideRight, forKey: "sidebar.right") }
+    }
+    /// The address bar folded away until the pointer rests on the top edge.
+    /// On unless turned off: the page keeps the height, and the bar comes
+    /// down over it the way the column comes in from the side.
+    @Published var barHides: Bool {
+        didSet { store.set(barHides, forKey: "bar.hides") }
     }
     /// How wide the column is. Pulled by its edge, and remembered.
     @Published var sideWidth: CGFloat {
@@ -67,6 +77,11 @@ final class Preferences: ObservableObject {
     }
     @Published var customEngine: String {
         didSet { store.set(customEngine, forKey: "search.custom") }
+    }
+
+    /// The line an empty address field shows.
+    var searchPrompt: String {
+        "Search \(engine.name(custom: customEngine)) or type a URL"
     }
     /// Tabs nobody has looked at for half an hour give their page back and
     /// keep where they were. On unless turned off.
@@ -230,6 +245,8 @@ final class Preferences: ObservableObject {
         sidebar = store.object(forKey: "sidebar") as? Bool
             ?? (store.string(forKey: "manner") == "side")
         sideHides = store.bool(forKey: "sidebar.hides")
+        sideRight = store.bool(forKey: "sidebar.right")
+        barHides = store.object(forKey: "bar.hides") as? Bool ?? true
         let width = store.object(forKey: "sidebar.width") as? Double ?? Double(Metrics.side)
         sideWidth = min(Metrics.sideMax, max(Metrics.sideMin, CGFloat(width)))
         glyph = store.string(forKey: "glyph").flatMap(Glyph.init) ?? .letters

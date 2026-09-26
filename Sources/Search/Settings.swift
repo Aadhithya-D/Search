@@ -258,7 +258,7 @@ struct SettingsPanel: View {
 
     private var tabs: some View {
         Card {
-            Line("Tabs in a sidebar", "Down the left instead of across the top. Pull its edge to make it wider; double-click the edge to reset.") {
+            Line("Tabs in a sidebar", "Down one side instead of across the top. Pull its inner edge to make it wider; double-click the edge to reset.") {
                 Switch(on: Binding(
                     get: { prefs.sidebar },
                     set: { on in withAnimation(Motion.glide) { prefs.sidebar = on } }
@@ -266,9 +266,23 @@ struct SettingsPanel: View {
             }
             if prefs.sidebar {
                 Rule()
-                Line("Hide the sidebar until the pointer reaches the edge", "The page takes the whole window; push against its left edge for the tabs. ⌘S keeps them out.") {
+                Line("Sidebar side", "The column, and the handle that brings it back, sit on this edge.") {
+                    Segmented(
+                        options: [(false, "Left"), (true, "Right")],
+                        selection: Binding(
+                            get: { prefs.sideRight },
+                            set: { on in withAnimation(Motion.glide) { prefs.sideRight = on } }
+                        )
+                    )
+                }
+                Rule()
+                Line("Hide the sidebar until the pointer reaches the edge", "The page takes the whole window; push against that edge for the tabs. ⌘S keeps them out.") {
                     Switch(on: $prefs.sideHides)
                 }
+            }
+            Rule()
+            Line("Hide the address bar until the pointer reaches the top", "The page takes the full height; rest the pointer on the top edge and the bar comes down. It stays while an address is being typed.") {
+                Switch(on: $prefs.barHides)
             }
             Rule()
             Line("Tabs show", "Beside the title, and on a pinned square") {

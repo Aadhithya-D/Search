@@ -9,9 +9,9 @@ import WebKit
 // has always been and its sites use the store there has always been, so
 // turning spaces on signs nobody out.
 //
-// A space's sites live in a WebKit store of their own, made by identifier;
-// history, bookmarks, the passwords in the keychain, settings and
-// extensions are shared by every space. Switching swaps the row of tabs:
+// A space's sites live in a WebKit store of their own, made by identifier,
+// and so do its bookmarks. History, the passwords in the keychain, settings
+// and extensions are shared by every space. Switching swaps the row of tabs:
 // the ones left behind are parked, their sound paused, and they sleep
 // after half an hour as any tab does. ⌃1–⌃9 switch, as in Arc.
 
@@ -180,6 +180,7 @@ extension Browser {
 
         spaceID = id
         Spaces.current = id
+        bookmarks.use(id)
         Store.settings.set(id.uuidString, forKey: "space.current")
         if let back = parked.removeValue(forKey: id), !back.tabs.isEmpty {
             showRow(back.tabs, active: back.active)
@@ -271,6 +272,7 @@ extension Browser {
         spaces.remove(at: at)
         Spaces.write(spaces)
         Session.erase(space: id)
+        bookmarks.forget(id)
         // A space signed in with the others has nothing of its own to erase:
         // its cookies are theirs.
         if !shared { Spaces.erase(id) }
@@ -401,7 +403,7 @@ enum SpaceMenu {
         if !here.isFirst {
             menu.addItem(.separator())
             menu.addItem(item("Delete “\(here.name)”…") {
-                Ask.sure("Delete “\(here.name)”?", detail: "Its tabs close, and its cookies and sign-ins are erased from this Mac. History and bookmarks stay.", confirm: "Delete") {
+                Ask.sure("Delete “\(here.name)”?", detail: "Its tabs close, and its bookmarks, cookies and sign-ins are erased from this Mac. History stays.", confirm: "Delete") {
                     browser.deleteSpace(here.id)
                 }
             })
