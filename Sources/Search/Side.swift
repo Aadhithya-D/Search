@@ -43,6 +43,8 @@ struct SideBar: View {
     /// The neighbouring space's list is drawn too, and must not light up
     /// when this space's drag passes a folder.
     @State private var idleAim = DropAim()
+    /// The theme, open off the space on screen (Fork/SideFoot.swift).
+    @State private var theming = false
 
     static let row: CGFloat = 28
     static let gap: CGFloat = 2
@@ -565,6 +567,7 @@ struct SideBar: View {
                 .onDrop(of: [.text], isTargeted: $overSection) { providers in relocate(providers, into: nil) }
                 .contextMenu {
                     Button("New Folder") { newFolder(into: nil) }
+                    Button("Theme…") { theming = true }
                 }
             SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
             rule
@@ -574,7 +577,7 @@ struct SideBar: View {
     }
 
     /// The foot's door and its margin beneath.
-    private static let footHeight: CGFloat = 26 + 10
+    private static let footHeight: CGFloat = 26 + 12
 
     private var newTab: some View {
         Quiet(icon: "plus", title: "New Tab", height: SideBar.row) { browser.newTab() }
@@ -583,42 +586,20 @@ struct SideBar: View {
 
     /// One small door at the bottom: the settings.
     private var foot: some View {
-        SideFoot(browser: browser, prefs: prefs, fetches: browser.fetches)
-    }
-
-}
-
-/// The row at the bottom of the column. Never wider than the column: wider,
-/// the column took its width, and centred in its own frame it slid half the
-/// overflow off each side (#535). The space's door, the puzzle, bookmarks and
-/// downloads stay put; the pinned extensions that don't fit give way, from
-/// the last, and are still in the puzzle's list.
-private struct SideFoot: View {
-    @ObservedObject var browser: Browser
-    @ObservedObject var prefs: Preferences
-    @ObservedObject var fetches: Fetches
-
-    var body: some View {
-        HStack(spacing: 2) {
-            if browser.prefs.usesSpaces { SpaceDot(browser: browser) }
-            // Fork: the bookmarks are in the column (Fork/SideMarks.swift).
-            // Only while a download is running, and a moment after.
-            FetchDoor(browser: browser, fetches: fetches)
-            Spacer(minLength: 0)
+        // Fork: see Fork/SideFoot.swift.
+        ZStack {
+            SpaceStrip(browser: browser, theming: $theming)
+            // One door either side, the same width, so the spaces between
+            // them sit in the true middle of the column.
+            HStack(spacing: 0) {
+                Library(browser: browser, loot: browser.loot)
+                Spacer(minLength: 0)
+                Door(icon: "plus", help: "New Space") { browser.askForSpace() }
+            }
         }
-        .padding(.horizontal, 10)
-        .padding(.bottom, 10)
-    }
-
-    /// How many pinned extensions fit beside the doors that stay. Every door
-    /// is 26 points, with 2 between them.
-    private var room: Int {
-        let door: CGFloat = 26 + 2
-        var kept = 2  // the puzzle and bookmarks
-        if prefs.usesSpaces { kept += 1 }
-        if FetchDoor.shows(fetches, prefs) { kept += 1 }
-        let free = prefs.sideWidth - 2 * 10 + 2 - CGFloat(kept) * door
-        return max(0, Int((free / door).rounded(.down)))
+        .frame(height: 26)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 12)
     }
 }
 

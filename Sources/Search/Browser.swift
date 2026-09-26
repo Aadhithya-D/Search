@@ -4605,12 +4605,14 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
             download.cancel { _ in }
             return
         }
+        loot.start(download)  // Fork: Fork/SideFoot.swift
         // A true resume may continue the preserved target without asking its
         // delegate for a destination again. Publish Finder progress as soon
         // as the resumed WKDownload is attached; `going` coalesces a later
         // destination callback for the same URL.
         if entry != nil, let destination = entry?.destination {
             fetches.going(download, to: destination, cancel: finderCancellation(for: download))
+            loot.name(download, destination.lastPathComponent)  // Fork: Fork/SideFoot.swift
         }
     }
 
@@ -4689,6 +4691,7 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
     /// Called for both delegate completion and WKDownload.cancel completion;
     /// idempotence handles WebKit choosing either callback order.
     func relinquish(_ download: WKDownload) {
+        loot.end(download)  // Fork: Fork/SideFoot.swift
         downloading.removeAll { $0 === download }
         unlisted.remove(ObjectIdentifier(download))
     }
@@ -5029,6 +5032,7 @@ extension Browser: WKDownloadDelegate {
             return
         }
         fetches.going(download, to: file, cancel: finderCancellation(for: download))
+        loot.name(download, file.lastPathComponent)  // Fork: Fork/SideFoot.swift
         // A retry is numbered afresh from the name asked for, or the one you
         // gave it: never from "report 2.pdf", whose own " 2" is not its name.
         if chosen == nil { fetches.entry(for: download)?.retryName = prefs.asksWhereToSave ? file.lastPathComponent : name }
