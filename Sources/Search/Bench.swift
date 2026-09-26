@@ -1837,7 +1837,7 @@ final class Bench {
             guard let path = request["path"] as? String else { answer(["error": "column needs a path"]); return }
             let height = request["height"] as? Double ?? 600
             let width = Double(browser.prefs.sideWidth)
-            let host = NSHostingView(rootView: SideBar(browser: browser, prefs: browser.prefs).frame(width: width, height: height))
+            let host = NSHostingView(rootView: SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks).frame(width: width, height: height))
             host.frame = NSRect(x: 0, y: 0, width: width, height: height)
             let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.appearance = NSApp.effectiveAppearance

@@ -683,6 +683,10 @@ struct Carried: ViewModifier {
                             from = index
                         }
                         travel = vertical ? value.translation.height : value.translation.width
+                        // Fork: above the column's tabs the row is on its way
+                        // to the bookmarks. It keeps its place and follows the
+                        // hand; letting go there files the page.
+                        if vertical, value.location.y < 0 { return }
                         let target = min(max(0, from + Int((travel / step).rounded())), count - 1)
                         if target != index {
                             withAnimation(Motion.settle) { move(target) }

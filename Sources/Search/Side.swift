@@ -9,6 +9,7 @@ import SwiftUI
 struct SideBar: View {
     @ObservedObject var browser: Browser
     @ObservedObject var prefs: Preferences
+    @ObservedObject var bookmarks: Bookmarks
 
     @Environment(\.colorScheme) private var windowScheme
     @Namespace private var pill
@@ -30,8 +31,21 @@ struct SideBar: View {
     @State private var pinFrom = 0
     @State private var pinTravel: CGSize = .zero
 
-    private static let row: CGFloat = 28
-    private static let gap: CGFloat = 2
+    // Fork: the bookmarks in the column (Fork/SideMarks.swift).
+    /// Folders the column has opened.
+    @State var foldersOpen: Set<Bookmark.ID> = []
+    /// Bookmark rows, measured in the column, for a tab dropped onto one.
+    @State var spots: [MarkSpot] = []
+    @State private var overSection = false
+    /// Held as state, not observed here: the folder lighting up must not
+    /// redraw the tab under the hand, or the drag would be dropped.
+    @State var aim = DropAim()
+    /// The neighbouring space's list is drawn too, and must not light up
+    /// when this space's drag passes a folder.
+    @State private var idleAim = DropAim()
+
+    static let row: CGFloat = 28
+    static let gap: CGFloat = 2
     private static let square: CGFloat = 34
     private static let pinGap: CGFloat = 6
 
@@ -120,6 +134,16 @@ struct SideBar: View {
         .animation(Motion.glide, value: browser.editingTab)
         .animation(Motion.settle, value: browser.tabs.map(\.id))
         .animation(Motion.settle, value: browser.pinnedCount)
+        .coordinateSpace(name: "column")
+        .onPreferenceChange(MarkSpotsKey.self) { spots = $0 }
+        .onChange(of: bookmarks.reveal) { _, id in
+            guard let id else { return }
+            var open = foldersOpen
+            open.insert(id)
+            for parent in bookmarks.ancestors(of: id) { open.insert(parent) }
+            withAnimation(Motion.quick) { foldersOpen = open }
+            DispatchQueue.main.async { bookmarks.reveal = nil }
+        }
     }
 
     /// The column's edge: pull it to make the column wider or narrower,
@@ -199,7 +223,7 @@ struct SideBar: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if browser.pinnedCount > 0 {
                         pinned
-                            .padding(.bottom, 10)
+                            .padding(.bottom, 8)
                     }
                     // A row too long for the window scrolls between the pins
                     // and the foot, rather than running under the lights at one
@@ -234,7 +258,7 @@ struct SideBar: View {
                     }
                 }
             } else {
-                preview(browser.parked[browser.spaces[index].id] ?? Parked(tabs: [], active: nil), pill: pill)
+                preview(browser.parked[browser.spaces[index].id] ?? Parked(tabs: [], active: nil), space: browser.spaces[index].id, pill: pill)
             }
         }
         .padding(.horizontal, 10)
@@ -244,9 +268,9 @@ struct SideBar: View {
     /// Another space's rows, drawn with the same pieces as this one's so the
     /// two read as one column while they pass — and nothing to press until
     /// it is the one on screen.
-    private func preview(_ row: Parked, pill: Namespace.ID) -> some View {
+    private func preview(_ row: Parked, space: UUID, pill: Namespace.ID) -> some View {
         let pins = row.tabs.filter { $0.pin != nil }
-        let rest = row.tabs.filter { $0.pin == nil }
+        let rest = row.tabs.filter { $0.pin == nil && $0.bookmark == nil }  // Fork: Fork/BookmarkPages.swift
         let cells = pinCells(pins.count)
         return VStack(alignment: .leading, spacing: 0) {
             if !pins.isEmpty {
@@ -258,14 +282,22 @@ struct SideBar: View {
                         }
                     }
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
             }
+            section(browser.spaces.first { $0.id == space })
+            SideMarks(
+                browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: idleAim,
+                tree: bookmarks.nodes(in: space),
+                tabs: row.tabs, active: row.active,
+                colour: browser.spaces.first { $0.id == space }?.colour
+            )
+            rule
+            newTab
             VStack(spacing: SideBar.gap) {
                 ForEach(rest) { tab in
                     SideRow(browser: browser, prefs: prefs, tab: tab, live: tab.id == row.active, pill: pill, close: {})
                 }
             }
-            newTab
         }
         .allowsHitTesting(false)
     }
@@ -281,15 +313,19 @@ struct SideBar: View {
             : browser.rowTabs.count - pins
         let headings = prefs.usesTabGroups ? CGFloat(browser.tabGroups.count) * (GroupHeading.height + SideBar.gap) : 0
         let loose = CGFloat(count) * (SideBar.row + SideBar.gap) + headings
-        // Fork: the lights' row and the address above (Fork/SideAddress.swift).
-        return SideBar.topRow + SideAddress.block + pinBlock + loose + SideBar.row + 8
+        // Fork: the lights, the address, the space's name, the bookmark rows,
+        // New Tab, and the loose tabs (Fork/SideAddress.swift, Fork/SideMarks.swift).
+        let marks = CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty))
+            * (SideBar.row + SideBar.gap)
+        return SideBar.topRow + SideAddress.block + pinBlock + SideBar.section + marks + SideBar.ruleHeight + loose + (SideBar.row + SideBar.gap) + 16
     }
 
     // MARK: - the pinned squares
 
     private var pinnedTabs: [Tab] { browser.tabs.filter { $0.pin != nil } }
     private var looseTabs: [Tab] {
-        browser.tabs.filter { $0.pin == nil && (!prefs.usesTabGroups || browser.group(of: $0) == nil) }
+        // Fork: a bookmark's page isn't a loose tab (Fork/BookmarkPages.swift).
+        browser.tabs.filter { $0.pin == nil && $0.bookmark == nil && (!prefs.usesTabGroups || browser.group(of: $0) == nil) }
     }
 
     /// How many squares go in each row: at most four — fewer only when the
@@ -448,6 +484,10 @@ struct SideBar: View {
                         browser.move(tab, to: $0 + browser.pinnedCount)
                     }
                 })
+                // The reorder above keeps the row under the hand. This one
+                // only watches where the hand is, and files the page when
+                // that place is a bookmark folder.
+                .simultaneousGesture(filing(tab))
             }
         }
         .coordinateSpace(name: "rows")
@@ -479,11 +519,19 @@ struct SideBar: View {
         }
     }
 
-    /// The loose tabs and the row that makes another, which scroll as one.
+    /// Bookmarks, then the tabs, under the space's name. They scroll as one
+    /// once the column is full; the pins stay above them.
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
-            loose
+            section(browser.space)
+                .onDrop(of: [.text], isTargeted: $overSection) { providers in relocate(providers, into: nil) }
+                .contextMenu {
+                    Button("New Folder") { newFolder(into: nil) }
+                }
+            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
+            rule
             newTab
+            loose
         }
     }
 
@@ -491,7 +539,7 @@ struct SideBar: View {
     private static let footHeight: CGFloat = 26 + 10
 
     private var newTab: some View {
-        Quiet(icon: "plus", title: "New tab", height: SideBar.row) { browser.newTab() }
+        Quiet(icon: "plus", title: "New Tab", height: SideBar.row) { browser.newTab() }
             .padding(.top, SideBar.gap)
     }
 
@@ -499,7 +547,7 @@ struct SideBar: View {
     private var foot: some View {
         HStack(spacing: 2) {
             if browser.prefs.usesSpaces { SpaceDot(browser: browser) }
-            BookmarkDoor(browser: browser, arrowEdge: .trailing)
+            // Fork: the bookmarks are in the column (Fork/SideMarks.swift).
             // Only while a download is running, and a moment after.
             FetchDoor(browser: browser, fetches: browser.fetches)
             Spacer(minLength: 0)
