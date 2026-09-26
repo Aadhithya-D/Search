@@ -324,19 +324,23 @@ struct ContentView: View {
                 .padding(.bottom, gutter)
                 // The column's own margin is the air on its side; folded
                 // away, the page keeps the thin frame there too.
-                .padding(.leading, sidebar ? 0 : gutter)
-                .padding(.trailing, gutter)
-                .padding(.leading, roomed.width)
+                .padding(.leading, sideRight || !sidebar ? gutter : 0)
+                .padding(.trailing, sideRight && sidebar ? 0 : gutter)
+                .padding(.leading, sideRight ? 0 : roomed.width)
+                .padding(.trailing, sideRight ? roomed.width : 0)
                 .padding(.top, roomed.height)
-                .offset(x: chrome.width - roomed.width, y: chrome.height - roomed.height)
+                .offset(
+                    x: sideRight ? roomed.width - chrome.width : chrome.width - roomed.width,
+                    y: chrome.height - roomed.height
+                )
 
             // The column of tabs, in the way that has one. It takes the full
             // height, so the traffic lights sit in its own corner rather than
             // over the page.
             if sidebar {
                 SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .transition(.move(edge: .leading))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: sideRight ? .topTrailing : .topLeading)
+                    .transition(.move(edge: sideRight ? .trailing : .leading))
             }
 
             if !browser.prefs.sidebar, !browser.folded, browser.active?.immersed != true {
@@ -354,6 +358,7 @@ struct ContentView: View {
         }
         .ignoresSafeArea()
         .animation(Motion.glide, value: browser.prefs.sidebar)
+        .animation(Motion.glide, value: browser.prefs.sideRight)
         .onChange(of: browser.prefs.sidebar) { _, _ in paintChrome(window) }
         .onChange(of: browser.space) { _, _ in paintChrome(window) }
         .onChange(of: browser.spaceID) { _, _ in paintChrome(window) }
@@ -513,8 +518,8 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { browser.reviewing = false }
                 HiddenPanel(browser: browser)
-                    .padding(.top, Metrics.strip + 8)
-                    .padding(.trailing, 14)
+                    .padding(.top, chrome.height + 8)
+                    .padding(.trailing, (sideRight ? chrome.width : 0) + 14)
                     .transition(.scale(scale: 0.97, anchor: .topTrailing).combined(with: .opacity))
             }
             .ignoresSafeArea()
@@ -531,7 +536,8 @@ struct ContentView: View {
                 // Over the page only: the column, the strip and the bookmarks
                 // bar stay as they are, uncovered and in reach.
                 PeekLayer(browser: browser)
-                    .padding(.leading, chrome.width)
+                    .padding(.leading, sideRight ? 0 : chrome.width)
+                    .padding(.trailing, sideRight ? chrome.width : 0)
                     .padding(.top, chrome.height)
                     // From the window's own top edge, as the page is:
                     // the title bar's band is page too.

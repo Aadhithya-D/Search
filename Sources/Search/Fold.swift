@@ -99,12 +99,12 @@ struct Fold: View {
                     }
                     .transition(.move(edge: .top))
             }
-            ZStack(alignment: .leading) {
+            ZStack(alignment: prefs.sideRight ? .trailing : .leading) {
                 Color.clear.frame(width: 0)
                 if folding, prefs.sidebar, browser.peeking {
                     SideBar(browser: browser, prefs: prefs, bookmarks: browser.bookmarks)
-                        .shadow(color: .black.opacity(0.14), radius: 20, x: 4)
-                        .transition(.move(edge: .leading))
+                        .shadow(color: .black.opacity(0.14), radius: 20, x: prefs.sideRight ? -4 : 4)
+                        .transition(.move(edge: prefs.sideRight ? .trailing : .leading))
                 }
             }
             .frame(maxHeight: .infinity)
@@ -150,7 +150,10 @@ struct Fold: View {
     }
 
     private var lightsOff: Bool {
-        browser.folded && !browser.peeking
+        // Fork: a column on the right never holds them; they stay in the
+        // window's corner, on the space's colour.
+        if prefs.sidebar, prefs.sideRight { return false }
+        return browser.folded && !browser.peeking
     }
 
     /// The pointer is watched only while there is something folded for it
@@ -174,8 +177,8 @@ struct Fold: View {
         let point = window.convertPoint(fromScreen: screen)
         let size = window.frame.size
         let inWindow = point.x >= 0 && point.x < size.width && point.y >= 0 && point.y < size.height
-        // Distance from the left edge for the column, from the top for the strip.
-        let distance = prefs.sidebar ? point.x : size.height - point.y
+        // Distance from the column's edge for the column, from the top for the strip.
+        let distance = prefs.sidebar ? (prefs.sideRight ? size.width - point.x : point.x) : size.height - point.y
         if browser.peeking {
             pass()
             // Only this window counts, not another app's window over it. One
@@ -185,10 +188,10 @@ struct Fold: View {
             let onWindow = top == window.windowNumber
             let onOwnPanel = !onWindow && NSApp.windows.contains { $0.windowNumber == top }
             let reach = prefs.sidebar ? prefs.sideWidth : Metrics.strip
-            let over = onOwnPanel || (onWindow && inWindow && distance < reach)
+            let over = onOwnPanel || (onWindow && inWindow && distance >= 0 && distance < reach)
             if over != inside { inside = over }
             peek(over)
-        } else if inWindow, distance < Fold.edge {
+        } else if inWindow, distance >= 0, distance < Fold.edge {
             // Which window is under the pointer is asked only here, at the
             // edge: another app's window over it doesn't bring the column out.
             guard NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber

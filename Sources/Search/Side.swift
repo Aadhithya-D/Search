@@ -61,8 +61,10 @@ struct SideBar: View {
             // The lights and the doors at the other end are views of their
             // own and answer first.
             HStack(spacing: 0) {
-                DragStrip()
-                    .frame(width: 10 + Metrics.sideLights)
+                if !prefs.sideRight {
+                    DragStrip()
+                        .frame(width: 10 + Metrics.sideLights)
+                }
                 DragStrip()
             }
             .frame(height: SideBar.topRow)
@@ -72,7 +74,10 @@ struct SideBar: View {
                 // reload at the end of the same line, and the address as the
                 // row under them (Fork/SideAddress.swift).
                 HStack(spacing: 2) {
-                    Color.clear.frame(width: Metrics.sideLights)
+                    // On the right the lights stay in the window's corner.
+                    if !prefs.sideRight {
+                        Color.clear.frame(width: Metrics.sideLights)
+                    }
                     Spacer(minLength: 4)
                     // Never wider than the column: a narrow one keeps the
                     // three doors and lets the extensions' button go — the
@@ -120,7 +125,7 @@ struct SideBar: View {
                 Grain()
             }
         }
-        .overlay(alignment: .trailing) { edge }
+        .overlay(alignment: prefs.sideRight ? .leading : .trailing) { edge }
         // A pastel worn on a dark window takes dark ink, and the other way
         // round: the column is drawn in its colour's own light or dark.
         .environment(\.colorScheme, browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light)
@@ -161,7 +166,8 @@ struct SideBar: View {
                 DragGesture(minimumDistance: 1, coordinateSpace: .global)
                     .onChanged { value in
                         if grabbed == nil { grabbed = prefs.sideWidth }
-                        let wanted = (grabbed ?? prefs.sideWidth) + value.translation.width
+                        let delta = prefs.sideRight ? -value.translation.width : value.translation.width
+                        let wanted = (grabbed ?? prefs.sideWidth) + delta
                         prefs.sideWidth = min(Metrics.sideMax, max(Metrics.sideMin, wanted))
                     }
                     .onEnded { _ in grabbed = nil }

@@ -55,6 +55,10 @@ final class Preferences: ObservableObject {
     @Published var sideHides: Bool {
         didSet { store.set(sideHides, forKey: "sidebar.hides") }
     }
+    /// Fork: the column on the right. The handle that brings it back follows it.
+    @Published var sideRight: Bool {
+        didSet { store.set(sideRight, forKey: "sidebar.right") }
+    }
     /// How wide the column is. Pulled by its edge, and remembered.
     @Published var sideWidth: CGFloat {
         didSet { store.set(Double(sideWidth), forKey: "sidebar.width") }
@@ -230,6 +234,7 @@ final class Preferences: ObservableObject {
         sidebar = store.object(forKey: "sidebar") as? Bool
             ?? (store.string(forKey: "manner") == "side")
         sideHides = store.bool(forKey: "sidebar.hides")
+        sideRight = store.bool(forKey: "sidebar.right")
         let width = store.object(forKey: "sidebar.width") as? Double ?? Double(Metrics.side)
         sideWidth = min(Metrics.sideMax, max(Metrics.sideMin, CGFloat(width)))
         glyph = store.string(forKey: "glyph").flatMap(Glyph.init) ?? .letters

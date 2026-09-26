@@ -71,6 +71,14 @@ extension ContentView {
         browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light
     }
 
-    /// The frame's top edge over the page.
-    var gutterTop: CGFloat { framed ? 8 : 0 }
+    /// The frame's top edge over the page. With the column on the right the
+    /// traffic lights stay in the window's corner, over the frame, and the
+    /// page starts under their row.
+    var gutterTop: CGFloat {
+        guard framed else { return 0 }
+        return browser.prefs.sideRight ? SideBar.topRow : 8
+    }
+
+    /// The column is on the right. The page then gives up its trailing edge.
+    var sideRight: Bool { browser.prefs.sideRight && browser.prefs.sidebar }
 }
