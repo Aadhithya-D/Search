@@ -1379,7 +1379,7 @@ private struct ExtensionButtons: View {
                 }
                 .background(Anchor(id: Extensions.menuAnchor))
                 .popover(isPresented: $extensions.menuOpen, arrowEdge: edge) {
-                    ExtensionMenu(extensions: extensions)
+                    ExtensionMenu(extensions: extensions).popGround()
                 }
             }
         }

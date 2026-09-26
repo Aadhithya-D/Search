@@ -299,7 +299,7 @@ struct NewSpaceCard: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
         .help(inline ? "New space — choose its icon" : "Choose an icon")
-        .popover(isPresented: $choosing, arrowEdge: .bottom) { icons }
+        .popover(isPresented: $choosing, arrowEdge: .bottom) { icons.popGround() }
     }
 
     private var field: some View {
