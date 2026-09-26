@@ -31,7 +31,14 @@ struct Bookmark: Codable, Identifiable, Hashable {
 
 @MainActor
 final class Bookmarks: ObservableObject {
-    @Published private(set) var roots: [Bookmark] = []
+    // Fork: each space keeps its own list (Fork/BookmarksPerSpace.swift).
+    /// The space on screen.
+    var space = Space.firstID
+    var trees: [UUID: [Bookmark]] = [:]
+    /// The file was still one list for every space. It stays with whichever
+    /// space is on screen the first time that space is asked for.
+    var carried = false
+    @Published var roots: [Bookmark] = []
 
     init() { load() }
 
@@ -209,15 +216,28 @@ final class Bookmarks: ObservableObject {
 
     private func load() {
         guard let data = try? Data(contentsOf: Bookmarks.file) else { return }
-        guard let list = try? JSONDecoder().decode([Bookmark].self, from: data) else {
+        let decoder = JSONDecoder()
+        // Each space has its own list. A file from before that is the one
+        // list there was, and it stays with the space on screen.
+        if let trees = try? decoder.decode([UUID: [Bookmark]].self, from: data) {
+            self.trees = trees
+            roots = trees[space] ?? []
+        } else if let list = try? decoder.decode([Bookmark].self, from: data) {
+            carried = true
+            roots = list
+        } else {
             Store.quarantine(Bookmarks.file)
-            return
         }
-        roots = list
     }
 
-    private func save() {
-        let snapshot = roots
+    func save() {
+        if carried {
+            carried = false
+            trees = [space: roots]
+        } else {
+            trees[space] = roots
+        }
+        let snapshot = trees
         let file = Bookmarks.file
         DispatchQueue.global(qos: .utility).async {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }

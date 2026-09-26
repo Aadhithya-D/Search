@@ -832,6 +832,7 @@ final class Browser: NSObject, ObservableObject {
             spaceID = last
             Spaces.current = last
         }
+        bookmarks.use(spaceID)
         restoreSession()
         if prefs.usesSpaces { preloadSpaces() }
     }

@@ -184,6 +184,7 @@ extension Browser {
 
         spaceID = id
         Spaces.current = id
+        bookmarks.use(id)
         Store.settings.set(id.uuidString, forKey: "space.current")
         if let back = parked.removeValue(forKey: id), !back.tabs.isEmpty {
             showRow(back.tabs, active: back.active)
@@ -275,6 +276,7 @@ extension Browser {
         spaces.remove(at: at)
         Spaces.write(spaces)
         Session.erase(space: id)
+        bookmarks.forget(id)
         // A space signed in with the others has nothing of its own to erase:
         // its cookies are theirs.
         if !shared { Spaces.erase(id) }
@@ -409,7 +411,7 @@ enum SpaceMenu {
         if !here.isFirst {
             menu.addItem(.separator())
             menu.addItem(item("Delete “\(here.name)”…") {
-                Ask.sure("Delete “\(here.name)”?", detail: "Its tabs close, and its cookies and sign-ins are erased from this Mac. History and bookmarks stay.", confirm: "Delete") {
+                Ask.sure("Delete “\(here.name)”?", detail: "Its tabs close, and its bookmarks, cookies and sign-ins are erased from this Mac. History stays.", confirm: "Delete") {
                     browser.deleteSpace(here.id)
                 }
             })
