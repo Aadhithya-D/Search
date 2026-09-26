@@ -2,7 +2,15 @@ import SwiftUI
 
 // Fork: the folded column (Fold.swift) says where it is — a small handle
 // fades in on its edge as the pointer comes near, and a click on it keeps
-// the column out.
+// the column out. Out over the page, the column is a card of its own, set
+// in from the window's edges with the page's own corners.
+
+extension Fold {
+    /// The floating column's inset from the window, the same as the page's,
+    /// and its corners, the same as the page's.
+    static let inset: CGFloat = 8
+    static let corner: CGFloat = 10
+}
 
 /// The handle on the column's edge, on whichever side the column is set to.
 struct SideHandle: View {

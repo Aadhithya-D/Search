@@ -106,9 +106,20 @@ struct Fold: View {
             ZStack(alignment: prefs.sideRight ? .trailing : .leading) {
                 Color.clear.frame(width: 0)
                 if folding, prefs.sidebar, browser.peeking {
-                    SideBar(browser: browser, prefs: prefs, bookmarks: browser.bookmarks)
-                        .shadow(color: .black.opacity(0.14), radius: 20, x: prefs.sideRight ? -4 : 4)
-                        .transition(.move(edge: prefs.sideRight ? .trailing : .leading))
+                    // Fork: a card of its own over the page, as in Arc and Zen:
+                    // in from the edge, lined up with the page's own rounded
+                    // corners, and floating free of the frame round it.
+                    SideBar(browser: browser, prefs: prefs, bookmarks: browser.bookmarks, floating: true)
+                        .clipShape(RoundedRectangle(cornerRadius: Fold.corner, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Fold.corner, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                                .allowsHitTesting(false)
+                        )
+                        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 6)
+                        .padding(.vertical, Fold.inset)
+                        .padding(prefs.sideRight ? .trailing : .leading, Fold.inset)
+                        .transition(.move(edge: prefs.sideRight ? .trailing : .leading).combined(with: .opacity))
                 }
             }
             .frame(maxHeight: .infinity)
@@ -140,6 +151,9 @@ struct Fold: View {
             watch()
         })
         .onChange(of: lightsOff) { _, _ in hideLights() }
+        .onChange(of: lightsInCard, initial: true) { _, card in
+            Lights.nudge(card ? CGSize(width: Fold.inset, height: Fold.inset) : .zero)
+        }
         .onChange(of: folding) { _, _ in watch() }
         // Back to the strip and then to the column again: the column comes
         // back as it rests — whole, not folded from a time nobody remembers,
@@ -163,6 +177,15 @@ struct Fold: View {
     /// Folded, and not taken over by a page filling the screen.
     private var folding: Bool {
         browser.folded && browser.active?.immersed != true
+    }
+
+    /// The column on the left, folded: when it comes out it is a card set in
+    /// from the window's corner, and the lights go into the card with it —
+    /// in by its inset, as far from its edges as from the docked column's.
+    /// Held for as long as it stays folded, so the lights never shift while
+    /// they are sliding in or out with the card; they are off screen between.
+    private var lightsInCard: Bool {
+        prefs.sidebar && !prefs.sideRight && browser.folded
     }
 
     private var lightsOff: Bool {
@@ -209,7 +232,7 @@ struct Fold: View {
             let top = NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0)
             let onWindow = top == window.windowNumber
             let onOwnPanel = !onWindow && NSApp.windows.contains { $0.windowNumber == top }
-            let reach = prefs.sidebar ? prefs.sideWidth : Metrics.strip
+            let reach = prefs.sidebar ? prefs.sideWidth + Fold.inset : Metrics.strip
             let over = onOwnPanel || (onWindow && inWindow && distance >= 0 && distance < reach)
             if over != inside { inside = over }
             peek(over)
@@ -273,7 +296,7 @@ struct Fold: View {
     private func hideLights() {
         guard let bar = Fold.titlebar else { return }
         if prefs.sidebar {
-            Fold.slide(bar, off: lightsOff, by: SideBar.topRow, up: true)
+            Fold.slide(bar, off: lightsOff, by: SideBar.topRow + Lights.nudge.height, up: true)
         } else {
             Fold.slide(bar, off: lightsOff, by: Metrics.strip, up: true)
         }
