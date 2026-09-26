@@ -40,7 +40,8 @@ struct BookmarksBar: View {
         }
         .frame(height: BookmarksBar.height)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(onFrame ? Palette.frame : Palette.ground)
+        // Fork: on the frame, the space's colour shows through (Fork/ColumnColour.swift).
+        .background(onFrame ? Color.clear : Palette.ground)
         .overlay(alignment: .bottom) {
             if !onFrame { Rectangle().fill(Palette.hairline).frame(height: 1) }
         }

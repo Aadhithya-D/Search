@@ -22,8 +22,13 @@ struct GroupHeading: View {
     @State private var hovering = false
     @State private var dropping = false
     @FocusState private var focused: Bool
+    @Environment(\.colorScheme) private var scheme
 
     private var editing: Bool { browser.editingGroupID == group.id }
+
+    private func wash(strong: Bool) -> Color {
+        horizontal ? (strong ? Palette.sideWash : Palette.sideHover) : SideTone.chip(scheme, strong: strong)
+    }
 
     /// Its height in the column, a little under a tab's.
     static let height: CGFloat = 24
@@ -63,7 +68,8 @@ struct GroupHeading: View {
         .frame(maxWidth: horizontal ? nil : .infinity, alignment: .leading)
         .fixedSize(horizontal: horizontal, vertical: false)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
-            .fill(dropping ? Palette.sideWash : (hovering ? Palette.sideHover : .clear)))
+            // Fork: in the column, white on the space's colour (Fork/ColumnColour.swift).
+            .fill(dropping ? wash(strong: true) : (hovering ? wash(strong: false) : .clear)))
         .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .onTapGesture { if !editing { browser.toggleTabGroup(group.id) } }
         .background {

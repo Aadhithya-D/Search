@@ -50,6 +50,10 @@ struct SplitStage: View {
                         PaneLayers(browser: browser, tab: tab, paired: shown.count > 1, width: frame.width,
                                    hovered: hovered == tab.id)
                             .frame(width: frame.width, height: frame.height)
+                            // Fork: what is drawn over a page — a blank tab's
+                            // ground, the picture held while a page loads —
+                            // keeps the card's corners too (Fork/ColumnColour.swift).
+                            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
                             .offset(x: frame.minX, y: frame.minY)
                     }
                 }

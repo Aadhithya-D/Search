@@ -19,6 +19,10 @@ struct Page: View {
 
     var body: some View {
         ZStack {
+            // A blank tab has no page to fill the card, so the card is the
+            // ground the field in the middle was made for.
+            if tab.isBlank { Palette.ground }
+
             // A tab put down with ⌘W has no view, and asking for one here
             // would build an empty one a frame before the stage moves on.
             //

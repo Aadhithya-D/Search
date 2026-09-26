@@ -110,6 +110,7 @@ private struct SplitTabHalf: View {
     let interactive: Bool
     let pill: Namespace.ID
     @Binding var hovered: Tab.ID?
+    @Environment(\.colorScheme) private var scheme
 
     private var hovering: Bool { hovered == tab.id }
     private var title: String { tab.label.isEmpty ? "New Tab" : tab.label }
@@ -165,7 +166,8 @@ private struct SplitTabHalf: View {
     private var ground: some View {
         if focused {
             ZStack(alignment: .leading) {
-                Rectangle().fill(Palette.sideWash)
+                // Fork: in the column, white on the space's colour (Fork/ColumnColour.swift).
+                Rectangle().fill(stacked ? SideTone.chip(scheme, strong: true) : Palette.sideWash)
                 if prefs.showsReading, !narrow {
                     GeometryReader { geo in
                         ReadingFill(meter: tab.meter, width: geo.size.width)
@@ -176,7 +178,7 @@ private struct SplitTabHalf: View {
             .matchedGeometryEffect(id: "live", in: pill)
         } else if hovering {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Palette.sideHover)
+                .fill(stacked ? SideTone.chip(scheme, strong: false) : Palette.sideHover)
         }
     }
 

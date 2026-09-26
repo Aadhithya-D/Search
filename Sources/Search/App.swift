@@ -373,6 +373,7 @@ struct ContentView: View {
     @State private var room: CGSize?
     @State private var roomTicket = 0
     @State private var immersionRevision = 0
+    @Environment(\.colorScheme) var windowScheme
 
 
     /// The window: room at the top, one stage for the page, and the row when
@@ -382,8 +383,17 @@ struct ContentView: View {
             // Black while a page has the screen, so the frame of our own window
             // that survives the transition is not a white band across the top.
             // With the tabs down the side, the ground the page's card and the
-            // column sit on (see CardEdge).
-            (fullscreenTab != nil ? Color.black : cards ? Palette.frame : Palette.ground)
+            // column sit on (see CardEdge). Fork: that ground is the space's
+            // own colour (Fork/ColumnColour.swift).
+            if fullscreenTab != nil {
+                Color.black
+            } else if cards {
+                Spaces.ground(browser.space)
+                    .environment(\.colorScheme, groundScheme)
+                Grain().environment(\.colorScheme, groundScheme)
+            } else {
+                Palette.ground
+            }
 
             // One stage, always. It starts beside the column and under the
             // strip, not behind them — a page sliding beneath floating chrome
@@ -427,6 +437,8 @@ struct ContentView: View {
             // there on the window's ground above the page's card, and no wider.
             if barShown {
                 BookmarksBar(browser: browser, bookmarks: browser.bookmarks, onFrame: cards)
+                    // Fork: inked for the space's colour under it (Fork/ColumnColour.swift).
+                    .environment(\.colorScheme, cards ? groundScheme : windowScheme)
                     .padding(.leading, sideOnRight ? farGap : chrome.width)
                     .padding(.trailing, sideOnRight ? chrome.width : farGap)
                     .padding(.top, band)
@@ -437,6 +449,9 @@ struct ContentView: View {
         .background { fullscreenWatch }
         .animation(Motion.glide, value: browser.prefs.sidebar)
         .animation(Motion.glide, value: browser.prefs.sidePosition)
+        .onChange(of: browser.prefs.sidebar) { _, _ in paintChrome(window) }
+        .onChange(of: browser.space) { _, _ in paintChrome(window) }
+        .onChange(of: browser.spaceID) { _, _ in paintChrome(window) }
         .animation(.easeOut(duration: 0.12), value: fullscreenTab?.id)
         .onAppear { if room == nil { room = chrome } }
         .onChange(of: chrome) { old, new in make(room: new, after: old) }
@@ -674,7 +689,8 @@ struct ContentView: View {
             .background(WindowSetup { window = $0; dress($0) })
             .onChange(of: browser.prefs.sidebar) { _, side in
                 // The ground the page's card sits on, or the page's own.
-                window?.backgroundColor = side ? Palette.NS.frame : Palette.NS.ground
+                // Fork: the space's colour (Fork/ColumnColour.swift).
+                paintChrome(window)
                 DispatchQueue.main.async { Lights.refresh(window); measureLights() }
             }
             .onChange(of: browser.prefs.sidePosition) { _, _ in
@@ -903,7 +919,7 @@ struct ContentView: View {
     }
 
     /// True while the tabs are down the left, and not folded away (see Fold.swift).
-    private var sidebar: Bool {
+    var sidebar: Bool {
         browser.prefs.sidebar && !browser.folded && fullscreenTab == nil
     }
 
@@ -947,6 +963,11 @@ struct ContentView: View {
         }
     }
 
+    // Fork: the window's own colour follows the space (Fork/ColumnColour.swift).
+    private func paintChrome(_ window: NSWindow?) {
+        window?.backgroundColor = browser.prefs.sidebar ? Spaces.nsGround(browser.space) : Palette.NS.ground
+    }
+
     /// Put the resting circles in the title bar, exactly over the buttons.
     private func measureLights() {
         guard let window,
@@ -974,7 +995,7 @@ struct ContentView: View {
         // window only has to be the ground colour that goes with it.
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.backgroundColor = browser.prefs.sidebar ? Palette.NS.frame : Palette.NS.ground
+        paintChrome(window)
         // The strip does the dragging, so the page underneath can't be grabbed
         // by accident while selecting text.
         window.isMovableByWindowBackground = false
