@@ -2159,6 +2159,7 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
     func keep(_ download: WKDownload) {
         download.delegate = self
         downloading.append(download)
+        loot.start(download)
     }
 
     /// Without this WebKit refuses every request out of hand, and a page that
@@ -2327,16 +2328,20 @@ extension Browser: WKDownloadDelegate {
                 return
             }
             completionHandler(url)
+            loot.name(download, url.lastPathComponent)
             announce("Downloading \(url.lastPathComponent)")
             return
         }
 
-        completionHandler(Browser.free(name, in: downloadsFolder))
+        let target = Browser.free(name, in: downloadsFolder)
+        completionHandler(target)
+        loot.name(download, target.lastPathComponent)
         announce("Downloading \(name)")
     }
 
     func downloadDidFinish(_ download: WKDownload) {
         downloading.removeAll { $0 === download }
+        loot.end(download)
         guard let file = download.progress.fileURL else {
             announce("Download finished")
             return
@@ -2358,6 +2363,7 @@ extension Browser: WKDownloadDelegate {
         resumeData: Data?
     ) {
         downloading.removeAll { $0 === download }
+        loot.end(download)
         announce("Download failed")
     }
 
