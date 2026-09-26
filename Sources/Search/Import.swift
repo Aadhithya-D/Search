@@ -87,6 +87,8 @@ enum Chromium {
 
     static let known: [Source] = [
         Source(name: "Dia", folder: "Dia/User Data", service: "Dia Safe Storage", account: "Dia", app: "Dia.app"),
+        // Fork: Aside (Fork/ProfileImport.swift).
+        Source(name: "Aside", folder: "Aside", service: "Aside Safe Storage", account: "Aside", app: "Aside.app"),
         Source(name: "Chrome", folder: "Google/Chrome", service: "Chrome Safe Storage", account: "Chrome", app: "Google Chrome.app"),
         Source(name: "Arc", folder: "Arc/User Data", service: "Arc Safe Storage", account: "Arc", app: "Arc.app"),
         Source(name: "Brave", folder: "BraveSoftware/Brave-Browser", service: "Brave Safe Storage", account: "Brave", app: "Brave Browser.app"),
@@ -142,8 +144,11 @@ enum Chromium {
 
     /// The passwords of one profile, or of all of them when `profile` is
     /// nil. The key is asked for once, here, whichever it is.
-    static func read(_ source: Source, profile: String? = nil) throws -> Found {
-        guard let passphrase = safeStorage(source) else { throw Trouble.noPassphrase }
+    /// Fork: `passphrase`, the browser's key already asked for once, so
+    /// reading several of its profiles asks macOS only the first time
+    /// (Fork/ProfileImport.swift).
+    static func read(_ source: Source, profile: String? = nil, passphrase known: String? = nil) throws -> Found {
+        guard let passphrase = known ?? safeStorage(source) else { throw Trouble.noPassphrase }
         let key = stretch(passphrase)
 
         var logins: [Login] = []
@@ -442,7 +447,7 @@ enum Chromium {
     /// counting never does.
     static private(set) var keyAsks = 0
 
-    private static func safeStorage(_ source: Source) -> String? {
+    static func safeStorage(_ source: Source) -> String? {  // Fork: Fork/ProfileImport.swift
         keyAsks += 1
         // A test run's made-up browser keeps its key beside its profiles,
         // not in the keychain.
@@ -466,7 +471,7 @@ enum Chromium {
 
     /// Chromium's own recipe, unchanged for a decade: PBKDF2 over SHA-1, the
     /// salt "saltysalt", 1003 rounds, sixteen bytes out.
-    private static func stretch(_ passphrase: String) -> [UInt8] {
+    static func stretch(_ passphrase: String) -> [UInt8] {
         var key = [UInt8](repeating: 0, count: 16)
         let salt = Array("saltysalt".utf8)
         let pass = Array(passphrase.utf8)
