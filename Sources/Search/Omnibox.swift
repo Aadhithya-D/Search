@@ -39,7 +39,7 @@ struct Omnibox: View {
                     // the appear and disappear it had, and the overlay is what
                     // keeps that from moving the field.
                     if !browser.offers.isEmpty {
-                        list
+                        OfferList(browser: browser)
                             .frame(width: Metrics.fieldWidth)
                             .offset(y: Self.fieldHeight + 8)
                     }
@@ -95,14 +95,16 @@ struct Omnibox: View {
             }
     }
 
-    /// What it thinks you mean. Places you have been come with their titles;
-    /// the handful of well-known addresses it starts life knowing come without
-    /// the weight of one.
-    ///
-    /// It lives below the field, in an overlay, so arriving or leaving never
-    /// moves the field — and the transition that carried it in and out before
-    /// is kept, only anchored to its own top edge.
-    private var list: some View {
+}
+
+/// What the field thinks you mean, hung under whichever field is up — the one
+/// in the middle of an empty tab, or the bar across the top. Places you have
+/// been come with their titles; a search comes last, and only when what was
+/// typed cannot be a place.
+struct OfferList: View {
+    @ObservedObject var browser: Browser
+
+    var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(browser.offers.enumerated()), id: \.element.id) { index, offer in
                 Row(offer: offer, picked: browser.picked == index)
@@ -111,13 +113,13 @@ struct Omnibox: View {
             }
         }
         .padding(6)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Palette.ground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Palette.hairline, lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.07), radius: 20, y: 6)
-        .transition(.scale(scale: 0.98, anchor: .top).combined(with: .opacity))
     }
 
     private struct Row: View {
@@ -254,6 +256,9 @@ private struct Breath: NSViewRepresentable {
 /// needs a real text field and its delegate.
 struct AddressField: NSViewRepresentable {
     @ObservedObject var browser: Browser
+    /// The bar under the lights wants a smaller face than the field that
+    /// stands alone in the middle of an empty tab.
+    var point: CGFloat = 15.5
 
     func makeCoordinator() -> Coordinator { Coordinator(browser: browser) }
 
@@ -263,7 +268,7 @@ struct AddressField: NSViewRepresentable {
         field.isBordered = false
         field.drawsBackground = false
         field.focusRingType = .none
-        field.font = .systemFont(ofSize: 15.5)
+        field.font = .systemFont(ofSize: point)
         field.textColor = Palette.NS.ink
         field.lineBreakMode = .byTruncatingTail
         field.cell?.usesSingleLineMode = true
@@ -273,7 +278,7 @@ struct AddressField: NSViewRepresentable {
         field.placeholderAttributedString = NSAttributedString(
             string: "Enter a web address",
             attributes: [
-                .font: NSFont.systemFont(ofSize: 15.5),
+                .font: NSFont.systemFont(ofSize: point),
                 .foregroundColor: NSColor(Palette.ink.opacity(0.3)),
             ]
         )

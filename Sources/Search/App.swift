@@ -294,7 +294,7 @@ struct ContentView: View {
             // height, so the traffic lights sit in its own corner rather than
             // over the page.
             if sidebar {
-                SideBar(browser: browser, prefs: browser.prefs)
+                SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .transition(.move(edge: .leading))
             }
@@ -304,9 +304,18 @@ struct ContentView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
-            // The bookmarks bar, under the strip or beside the column's top.
+            // The bookmarks bar, under the address.
             if barShown {
                 BookmarksBar(browser: browser, bookmarks: browser.bookmarks)
+                    .padding(.leading, chrome.width)
+                    .padding(.top, band + urlBand)
+                    .transition(.opacity)
+            }
+
+            // The address, across the top of the page: beside the column it
+            // fills the lights' row, and under the strip it is its own band.
+            if urlShown {
+                URLBar(browser: browser, tall: sidebar)
                     .padding(.leading, chrome.width)
                     .padding(.top, band)
                     .transition(.opacity)
@@ -315,6 +324,7 @@ struct ContentView: View {
         .ignoresSafeArea()
         .animation(Motion.glide, value: browser.prefs.sidebar)
         .animation(.easeOut(duration: 0.12), value: browser.active?.immersed)
+        .animation(Motion.quick, value: browser.offers.isEmpty)
         .onAppear { if room == nil { room = chrome } }
         .onChange(of: chrome) { old, new in make(room: new, after: old) }
     }
@@ -323,6 +333,25 @@ struct ContentView: View {
     private var stage: some View {
         if let tab = browser.active {
             Page(tab: tab)
+                // A click on the page puts the address away. The bar used to
+                // dim the page and catch that click itself. The list sits in
+                // the same layer, above that catch, so a row still receives
+                // the click — under the find bar and the saved-account list.
+                .overlay(alignment: .top) {
+                    ZStack(alignment: .top) {
+                        if browser.editing, !tab.isBlank {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { browser.dismiss() }
+                        }
+                        if browser.fieldShowing, !browser.offers.isEmpty {
+                            OfferList(browser: browser)
+                                .padding(.horizontal, 12)
+                                .padding(.top, (barShown ? BookmarksBar.height : 0) + 6)
+                                .transition(.opacity)
+                        }
+                    }
+                }
                 .overlay {
                     if browser.prefs.showsLinks { LinkBubble(status: browser.linkStatus) }
                 }
@@ -347,7 +376,7 @@ struct ContentView: View {
     /// What the column and the strip take from the page right now: animated
     /// as they come and go.
     private var chrome: CGSize {
-        CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + (barShown ? BookmarksBar.height : 0))
+        CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + urlBand + (barShown ? BookmarksBar.height : 0))
     }
 
     /// The bookmarks bar is up: asked for, there are bookmarks, and the tabs
@@ -406,20 +435,6 @@ struct ContentView: View {
         .animation(Motion.settle, value: browser.offering)
     }
 
-    /// The address field: raised over a page by ⌘L or ⌘K, and standing on its
-    /// own whenever a tab has nowhere to be yet.
-    @ViewBuilder
-    private var field: some View {
-        if browser.fieldShowing {
-            Omnibox(browser: browser, over: !(browser.active?.isBlank ?? true))
-                // Centred on the page, not on the window. The column of tabs
-                // is not what the field is standing over, and dimming it along
-                // with the page says otherwise.
-                .padding(.leading, sidebar ? browser.prefs.sideWidth : 0)
-                .transition(.scale(scale: 0.97).combined(with: .opacity))
-        }
-    }
-
     /// The panels. All the same kind of thing, so they are built the same way.
     @ViewBuilder
     private var panels: some View {
@@ -453,7 +468,7 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { browser.reviewing = false }
                 HiddenPanel(browser: browser)
-                    .padding(.top, Metrics.strip + 8)
+                    .padding(.top, chrome.height + 8)
                     .padding(.trailing, 14)
                     .transition(.scale(scale: 0.97, anchor: .topTrailing).combined(with: .opacity))
             }
@@ -477,12 +492,7 @@ struct ContentView: View {
                     // the title bar's band is page too.
                     .ignoresSafeArea()
             }
-            .overlay { field }
             .overlay { panels }
-            // The field comes on its spring, and goes quickly: once Return
-            // is pressed the page is on its way, and the field is not what
-            // there is to watch.
-            .animation(browser.fieldShowing ? Motion.settle : Motion.quick, value: browser.fieldShowing)
             .background(WindowSetup { window = $0; dress($0) })
             .onChange(of: browser.prefs.sidebar) { _, _ in
                 DispatchQueue.main.async { measureLights() }
@@ -674,11 +684,22 @@ struct ContentView: View {
     }
 
     /// The column has its own corner for the lights, so the page beside it
-    /// starts at the very top; the strip needs a band.
+    /// starts under the address bar rather than under a second strip. The
+    /// strip across the top still needs its own band, and the address sits
+    /// under that.
     private var band: CGFloat {
         guard browser.active?.immersed != true else { return 0 }
         // Folded, the strip is out of the window and the page has its height.
         return browser.prefs.sidebar || browser.folded ? 0 : Metrics.strip
+    }
+
+    /// The address bar. A video filling the screen takes it, the way it takes
+    /// the strip. Beside the column the bar is that row's height.
+    private var urlShown: Bool { browser.active?.immersed != true }
+
+    private var urlBand: CGFloat {
+        guard urlShown else { return 0 }
+        return sidebar ? Metrics.strip : URLBar.height
     }
 
     /// Put the resting circles in the title bar, exactly over the buttons.

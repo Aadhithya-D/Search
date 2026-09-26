@@ -96,8 +96,8 @@ final class Browser: NSObject, ObservableObject {
     @Published var folded = false
     @Published var peeking = false
 
-    /// The address field, raised over a page by ⌘L. A blank tab shows it
-    /// without being asked — there is nothing else for that tab to show.
+    /// The address field, in the bar across the top. ⌘L selects what's there;
+    /// a blank tab shows the field without being asked.
     @Published var editing = false
     /// What is in the field. Every change re-reads the history, because the
     /// list under the field and the grey ending inside it are both just

@@ -1,14 +1,16 @@
 import SwiftUI
 
-/// The tabs, down the left instead of across the top.
+/// The column down the left: pinned pages, then bookmark folders, then the
+/// tabs in a section of their own.
 ///
 /// The same pieces as the strip — the grey that slides to the tab you picked,
 /// the pinned squares, the cross that appears under the pointer — laid out the
 /// other way. The traffic lights keep their corner; the column starts under
-/// them and the page takes the whole height beside it.
+/// them and the page starts under the address bar beside it.
 struct SideBar: View {
     @ObservedObject var browser: Browser
     @ObservedObject var prefs: Preferences
+    @ObservedObject var bookmarks: Bookmarks
 
     @Namespace private var pill
 
@@ -27,9 +29,14 @@ struct SideBar: View {
     @State private var pinDragging: Tab.ID?
     @State private var pinFrom = 0
     @State private var pinTravel: CGSize = .zero
+    /// Folders the column has opened. The tree is the same in every space,
+    /// so opening one stays open while the spaces slide past each other.
+    @State private var foldersOpen: Set<Bookmark.ID> = []
 
-    private static let row: CGFloat = 28
-    private static let gap: CGFloat = 2
+    fileprivate static let row: CGFloat = 28
+    fileprivate static let gap: CGFloat = 2
+    /// "Bookmarks" and "Tabs", the labels that split the column.
+    private static let section: CGFloat = 26
     private static let square: CGFloat = 34
     private static let pinGap: CGFloat = 4
 
@@ -177,14 +184,12 @@ struct SideBar: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if browser.pinnedCount > 0 {
                         pinned
-                            .padding(.bottom, 10)
+                            .padding(.bottom, 8)
                     }
-                    // A row too long for the window scrolls between the pins
-                    // and the foot, rather than running under the lights at one
-                    // end and the foot at the other. While it fits it stays a
-                    // plain stack, and the space under it is still the
-                    // window's to be dragged by. Inside the page: the swipe
-                    // between spaces moves the page, scroll and all.
+                    // Bookmarks and tabs scroll together once they pass the
+                    // foot. The pins stay, the way the icons at the top of the
+                    // column do. While it all fits, the stack stays plain and
+                    // the space under it is still the window's to be dragged by.
                     ViewThatFits(in: .vertical) {
                         rows
                         ScrollViewReader { proxy in
@@ -238,14 +243,17 @@ struct SideBar: View {
                         }
                     }
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
             }
+            section("Bookmarks")
+            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen)
+            section("Tabs")
+            newTab
             VStack(spacing: SideBar.gap) {
                 ForEach(rest) { tab in
                     SideRow(browser: browser, prefs: prefs, tab: tab, live: tab.id == row.active, pill: pill, close: {})
                 }
             }
-            newTab
         }
         .allowsHitTesting(false)
     }
@@ -258,9 +266,12 @@ struct SideBar: View {
         let cols = SideBar.pinColumns(pins)
         let pinRows = pins == 0 ? 0 : (pins + cols - 1) / cols
         let pinBlock = pinRows == 0 ? 0
-            : CGFloat(pinRows) * pinHeight + CGFloat(pinRows - 1) * SideBar.pinGap + 10
+            : CGFloat(pinRows) * pinHeight + CGFloat(pinRows - 1) * SideBar.pinGap + 8
         let loose = CGFloat(browser.tabs.count - pins) * (SideBar.row + SideBar.gap)
-        return Metrics.strip + pinBlock + loose + SideBar.row + 8
+        let marks = CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty))
+            * (SideBar.row + SideBar.gap)
+        // Two section titles, the bookmark rows, the loose tabs, and New Tab.
+        return Metrics.strip + pinBlock + SideBar.section * 2 + marks + loose + SideBar.row + 16
     }
 
     // MARK: - the pinned squares
@@ -418,19 +429,33 @@ struct SideBar: View {
         .coordinateSpace(name: "rows")
     }
 
-    /// The loose tabs and the row that makes another, which scroll as one.
+    /// Bookmarks, then the tabs, each under its own label. They scroll as one
+    /// once the column is full; the pins stay above them.
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
-            loose
+            section("Bookmarks")
+            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen)
+            section("Tabs")
             newTab
+            loose
         }
+    }
+
+    /// The small label a section of the column is filed under.
+    private func section(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Palette.muted)
+            .padding(.leading, 4)
+            .frame(height: SideBar.section, alignment: .bottomLeading)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// The foot's door and its margin beneath.
     private static let footHeight: CGFloat = 26 + 10
 
     private var newTab: some View {
-        Quiet(icon: "plus", title: "New tab", height: SideBar.row) { browser.newTab() }
+        Quiet(icon: "plus.square", title: "New Tab", height: SideBar.row) { browser.newTab() }
             .padding(.top, SideBar.gap)
     }
 
@@ -449,6 +474,172 @@ struct SideBar: View {
         .padding(.bottom, 10)
     }
 
+}
+
+/// Bookmarks, in the column: folders that open downward, and the pages filed
+/// in them. The same tree as the menu and the manager, drawn as rows so it
+/// can sit between the pins and the tabs.
+private struct SideMarks: View {
+    @ObservedObject var browser: Browser
+    @ObservedObject var bookmarks: Bookmarks
+    @Binding var open: Set<Bookmark.ID>
+
+    var body: some View {
+        if bookmarks.isEmpty {
+            Text("No bookmarks yet")
+                .font(.system(size: 12))
+                .foregroundStyle(Palette.faint)
+                .padding(.leading, 8)
+                .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
+        } else {
+            VStack(alignment: .leading, spacing: SideBar.gap) {
+                rows(bookmarks.roots, depth: 0)
+            }
+        }
+    }
+
+    /// How many rows are on screen, folders closed counted as one. The
+    /// column's drag area stops where these stop.
+    static func count(_ nodes: [Bookmark], open: Set<Bookmark.ID>, empty: Bool) -> Int {
+        if empty { return 1 }
+        return nodes.reduce(0) { total, node in
+            guard node.isFolder, open.contains(node.id) else { return total + 1 }
+            let kids = node.children ?? []
+            if kids.isEmpty { return total + 2 }
+            return total + 1 + count(kids, open: open, empty: false)
+        }
+    }
+
+    @ViewBuilder
+    private func rows(_ nodes: [Bookmark], depth: Int) -> some View {
+        ForEach(nodes) { node in
+            if node.isFolder {
+                folder(node, depth: depth)
+            } else {
+                site(node, depth: depth)
+            }
+        }
+    }
+
+    private func folder(_ node: Bookmark, depth: Int) -> some View {
+        let opened = open.wrappedValue.contains(node.id)
+        let kids = node.children ?? []
+        return VStack(alignment: .leading, spacing: SideBar.gap) {
+            line(node, depth: depth, folder: true, opened: opened) {
+                withAnimation(Motion.quick) {
+                    if opened {
+                        open.wrappedValue.remove(node.id)
+                    } else {
+                        open.wrappedValue.insert(node.id)
+                    }
+                }
+            }
+            if opened {
+                if kids.isEmpty {
+                    Text("Empty")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.faint)
+                        .padding(.leading, indent(depth + 1) + 8)
+                        .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
+                } else {
+                    // The rows call this folder back. AnyView is what lets a
+                    // view mention itself without the compiler having to name
+                    // the type it is still building.
+                    AnyView(rows(kids, depth: depth + 1))
+                }
+            }
+        }
+        .padding(opened ? 2 : 0)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(opened ? Palette.hover : Color.clear)
+        )
+    }
+
+    private func site(_ node: Bookmark, depth: Int) -> some View {
+        line(node, depth: depth, folder: false, opened: false) {
+            guard let text = node.url, let url = URL(string: text) else { return }
+            browser.pickBookmark(url)
+        }
+    }
+
+    private func line(
+        _ node: Bookmark,
+        depth: Int,
+        folder: Bool,
+        opened: Bool,
+        act: @escaping () -> Void
+    ) -> some View {
+        Line(node: node, depth: depth, folder: folder, opened: opened, act: act) {
+            bookmarks.remove(node.id)
+        } openNew: {
+            guard let text = node.url, let url = URL(string: text) else { return }
+            _ = browser.open(url, foreground: true)
+        }
+    }
+
+    private func indent(_ depth: Int) -> CGFloat { CGFloat(depth) * 14 }
+
+    private struct Line: View {
+        let node: Bookmark
+        let depth: Int
+        let folder: Bool
+        let opened: Bool
+        let act: () -> Void
+        let remove: () -> Void
+        let openNew: () -> Void
+
+        @State private var hovering = false
+
+        var body: some View {
+            HStack(spacing: 8) {
+                if folder {
+                    Image(systemName: "folder")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Palette.muted)
+                        .frame(width: 15, height: 15)
+                } else {
+                    Mark(
+                        icon: Favicons.shared.cached(node.host ?? ""),
+                        letter: String((node.host ?? "•").prefix(1)).uppercased(),
+                        size: 15
+                    )
+                }
+                Text(node.title)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(hovering ? Palette.ink : Palette.ink.opacity(folder ? 1 : 0.9))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if folder {
+                    Image(systemName: opened ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(Palette.faint)
+                }
+            }
+            .padding(.leading, 8 + CGFloat(depth) * 14)
+            .padding(.trailing, 8)
+            .frame(height: SideBar.row)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hovering && !opened ? Palette.wash : Color.clear)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture(perform: act)
+            .onHover { hovering = $0 }
+            .contextMenu {
+                if !folder {
+                    Button("Open", action: act)
+                    Button("Open in New Tab", action: openNew)
+                }
+                Button("Remove", role: .destructive, action: remove)
+            }
+            .help(node.url ?? node.title)
+            .animation(Motion.quick, value: hovering)
+            .animation(Motion.quick, value: opened)
+        }
+    }
 }
 
 /// The pinned squares' grid, every cell laid out at once. A lazy grid makes
