@@ -20,6 +20,8 @@ struct Keep: Codable, Identifiable, Equatable {
 @MainActor
 final class Loot: ObservableObject {
     @Published private(set) var kept: [Keep] = []
+    /// Fork: what is still arriving, newest first (Fork/SideFoot.swift).
+    @Published var hauls: [Haul] = []
 
     init() { load() }
 

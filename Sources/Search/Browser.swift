@@ -3307,6 +3307,7 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
         // Noted now, while its page is still there to ask: a private tab's
         // download is saved where you say, and left out of the list.
         if let web = download.webView, tab(for: web)?.shy == true { unlisted.insert(ObjectIdentifier(download)) }
+        loot.start(download)  // Fork: Fork/SideFoot.swift
     }
 
     /// Without this WebKit refuses every request out of hand, and a page that
@@ -3483,6 +3484,7 @@ extension Browser: WKDownloadDelegate {
         completionHandler(file)
         if let file {
             fetches.going(download, to: file)
+            loot.name(download, file.lastPathComponent)  // Fork: Fork/SideFoot.swift
             announce("Downloading \(file.lastPathComponent)")
         }
     }
@@ -3491,6 +3493,7 @@ extension Browser: WKDownloadDelegate {
         downloading.removeAll { $0 === download }
         fetches.finish(download, file: download.progress.fileURL)
         let listed = unlisted.remove(ObjectIdentifier(download)) == nil
+        loot.end(download)  // Fork: Fork/SideFoot.swift
         guard let file = download.progress.fileURL else {
             announce("Download finished")
             return
@@ -3588,6 +3591,7 @@ extension Browser: WKDownloadDelegate {
         downloading.removeAll { $0 === download }
         unlisted.remove(ObjectIdentifier(download))
         fetches.fail(download)
+        loot.end(download)  // Fork: Fork/SideFoot.swift
         announce("Download failed")
     }
 
