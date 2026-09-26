@@ -23,6 +23,14 @@ enum Palette {
     static let safe = Color(nsColor: NS.safe)           // green-700 · green-400
     static let unsafe = Color(nsColor: NS.unsafe)       // amber-700 · amber-400
 
+    /// The greys again, as ink let through rather than mixed: on a space's
+    /// colour they take on its hue instead of sitting on it as grey. On the
+    /// plain ground they read the same as muted, faint, hover and wash.
+    static let quiet = Color(nsColor: NS.quiet)
+    static let hush = Color(nsColor: NS.hush)
+    static let veil = Color(nsColor: NS.veil)
+    static let veilStrong = Color(nsColor: NS.veilStrong)
+
     /// The same colours for the AppKit corners of the app — a text field's
     /// ink, a window's background — which want an NSColor and keep it.
     enum NS {
@@ -38,6 +46,20 @@ enum Palette {
         static let safe = tint(light: (0.08, 0.50, 0.24), dark: (0.29, 0.87, 0.50))
         static let unsafe = tint(light: (0.71, 0.33, 0.04), dark: (0.98, 0.75, 0.14))
 
+        static let quiet = through(light: 0.52, dark: 0.60)
+        static let hush = through(light: 0.32, dark: 0.36)
+        static let veil = through(light: 0.045, dark: 0.07)
+        static let veilStrong = through(light: 0.08, dark: 0.11)
+
+        /// Black on a light window, white on a dark one, at an opacity.
+        private static func through(light: CGFloat, dark: CGFloat) -> NSColor {
+            NSColor(name: nil) { appearance in
+                appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                    ? NSColor(white: 1, alpha: dark)
+                    : NSColor(white: 0, alpha: light)
+            }
+        }
+
         private static func tint(light: (CGFloat, CGFloat, CGFloat), dark: (CGFloat, CGFloat, CGFloat)) -> NSColor {
             NSColor(name: nil) { appearance in
                 let c = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
@@ -50,6 +72,21 @@ enum Palette {
                 let dim = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
                 return NSColor(white: dim ? dark : light, alpha: 1)
             }
+        }
+    }
+}
+
+extension View {
+    /// A pop-up's own ground under what it shows. The system's glass alone
+    /// lets the page through so far that muted lines and icons were lost in
+    /// it; this is the ground nearly solid, in the pop-up's own light or dark.
+    /// It reaches past the content so the arrow is covered too — the pop-up's
+    /// outline clips it.
+    func popGround() -> some View {
+        background {
+            Palette.ground.opacity(0.96)
+                .padding(-40)
+                .allowsHitTesting(false)
         }
     }
 }
@@ -136,7 +173,7 @@ enum Metrics {
     static let fieldWidth: CGFloat = 560
     /// The column of titles down the left, in the way that has one.
     static let side: CGFloat = 232
-    static let sideMin: CGFloat = 176
+    static let sideMin: CGFloat = 200
     static let sideMax: CGFloat = 440
 }
 

@@ -1159,8 +1159,11 @@ final class Bench {
             guard let path = request["path"] as? String else { answer(["error": "site needs a path"]); return }
             guard let tab = browser.active, !tab.isBlank else { answer(["error": "no page on screen"]); return }
             let deeper = request["security"] as? Bool == true
+            let card = request["controls"] as? Bool == true
+                ? AnyView(SiteControls(browser: browser) {})
+                : AnyView(SiteCard(browser: browser, tab: tab, deeper: deeper) {})
             // On the ground: off screen there is no glass to stand on.
-            let host = NSHostingView(rootView: AnyView(SiteCard(browser: browser, tab: tab, deeper: deeper) {}.fixedSize().background(Palette.ground)))
+            let host = NSHostingView(rootView: AnyView(card.fixedSize().background(Palette.ground)))
             host.frame = NSRect(origin: .zero, size: host.fittingSize)
             let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
             window.appearance = NSApp.effectiveAppearance

@@ -431,7 +431,7 @@ final class Extensions: NSObject, ObservableObject {
         noteError("restarted the extension: \(reason)", for: id)
         // Its popup goes with it; it is opened again once the extension is back.
         let popup = ExtensionPopup.shared.extensionID == id ? ExtensionPopup.shared.view?.url : nil
-        let anchor = anchors[id]?.view?.window != nil ? anchors[id]?.view : anchors[Extensions.menuAnchor]?.view
+        let anchor = anchors[id]?.view?.window != nil ? anchors[id]?.view : fallbackAnchor
         unload(id)
         Task {
             guard await load(item), let popup, let context = contexts[id] else { return }
@@ -822,6 +822,16 @@ final class Extensions: NSObject, ObservableObject {
     @Published var menuOpen = false
     /// Where a popup hangs when its extension isn't pinned: the puzzle button.
     static let menuAnchor = "__menu"
+    /// Where it hangs when the puzzle button isn't on screen either: the
+    /// site's controls in the column's address.
+    static let siteAnchor = "__site"
+
+    /// The puzzle button, or the site's controls when the column had no
+    /// room for the puzzle.
+    var fallbackAnchor: NSView? {
+        if let menu = anchors[Extensions.menuAnchor]?.view, menu.window != nil { return menu }
+        return anchors[Extensions.siteAnchor]?.view
+    }
 
     /// One per loaded extension that has something to press, in install order.
     var buttons: [Button] {
@@ -854,7 +864,7 @@ final class Extensions: NSObject, ObservableObject {
         // Search's lost the new popup's first messages to its worker.
         if context.action(for: activeAdapter)?.presentsPopup == true, let url = popupURL(for: context) {
             let own = anchors[id]?.view
-            ExtensionPopup.shared.show(url, for: context, from: own?.window != nil ? own : anchors[Extensions.menuAnchor]?.view)
+            ExtensionPopup.shared.show(url, for: context, from: own?.window != nil ? own : fallbackAnchor)
             return
         }
         context.performAction(for: activeAdapter)
@@ -953,7 +963,7 @@ extension Extensions: WKWebExtensionControllerDelegate {
         action.closePopup()
         guard let url else { return }
         let own = anchors[context.uniqueIdentifier]?.view
-        let anchor = own?.window != nil ? own : anchors[Extensions.menuAnchor]?.view
+        let anchor = own?.window != nil ? own : fallbackAnchor
         ExtensionPopup.shared.show(url, for: context, from: anchor)
     }
 
@@ -1145,7 +1155,7 @@ private struct ExtensionButtons: View {
                 }
                 .background(Anchor(id: Extensions.menuAnchor))
                 .popover(isPresented: $extensions.menuOpen, arrowEdge: edge) {
-                    ExtensionMenu(extensions: extensions)
+                    ExtensionMenu(extensions: extensions).popGround()
                 }
             }
         }
@@ -1267,11 +1277,94 @@ func extensionMenuPicture() -> NSBitmapImageRep? {
     return picture
 }
 
+/// The extensions' list, where it is not behind the puzzle button: in the
+/// site's controls, under Show Reader. `close` puts that away first.
+@available(macOS 15.4, *)
+struct ExtensionsInline: View {
+    let close: () -> Void
+    @ObservedObject private var extensions = Extensions.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            SiteCard.Header(title: "Extensions")
+            ForEach(extensions.buttons) { button in
+                Line(button: button) {
+                    close()
+                    let id = button.id
+                    // The popover goes first; the popup then hangs from the
+                    // site's controls it came out of.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { extensions.press(id) }
+                }
+                .contextMenu { ExtensionActions(id: button.id, name: button.name, extensions: extensions) }
+            }
+            // Where more come from, apart from the ones there are.
+            SiteCard.Separator()
+            SiteCard.Row("Chrome Web Store…") {
+                close()
+                extensions.browser?.open(Browser.webStore, foreground: true)
+            }
+            SiteCard.Row("Manage Extensions…") {
+                close()
+                Store.settings.set("extensions", forKey: "settings.page")
+                extensions.browser?.tuning = true
+            }
+        }
+    }
+
+    /// An extension, as a menu line with its icon before the name.
+    private struct Line: View {
+        let button: Extensions.Button
+        let act: () -> Void
+        @State private var hovering = false
+
+        var body: some View {
+            HStack(spacing: 7) {
+                ExtensionIcon(button: button, size: 15)
+                Text(button.name)
+                    .font(MenuMetrics.font)
+                    .foregroundStyle(hovering ? Color.white : Color(nsColor: button.enabled ? .labelColor : .secondaryLabelColor))
+                    .lineLimit(1)
+                Spacer(minLength: 24)
+            }
+            .padding(.leading, MenuMetrics.text - MenuMetrics.inset)
+            .padding(.trailing, MenuMetrics.trailing - MenuMetrics.inset)
+            .frame(height: MenuMetrics.row)
+            .background(
+                RoundedRectangle(cornerRadius: MenuMetrics.highlight, style: .continuous)
+                    .fill(hovering ? MenuMetrics.selection : .clear)
+            )
+            .padding(.horizontal, MenuMetrics.inset)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: act)
+            .onHover { hovering = $0 }
+            .help(button.label)
+        }
+    }
+}
+
+/// A view the popups can hang from when there is no puzzle button.
+struct ExtensionSiteAnchor: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        note(view)
+        return view
+    }
+    func updateNSView(_ view: NSView, context: Context) { note(view) }
+
+    private func note(_ view: NSView) {
+        if #available(macOS 15.4, *) {
+            Extensions.shared.anchors[Extensions.siteAnchor] = WeakView(view)
+        }
+    }
+}
+
 /// The list behind the puzzle button: every running extension, a pin for
 /// each, and the way to Settings.
+
 @available(macOS 15.4, *)
 private struct ExtensionMenu: View {
     @ObservedObject var extensions: Extensions
+    var dismiss: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -1285,7 +1378,7 @@ private struct ExtensionMenu: View {
                 ScrollView {
                     VStack(spacing: 1) {
                         ForEach(buttons) { button in
-                            Row(button: button, extensions: extensions)
+                            Row(button: button, extensions: extensions, dismiss: dismiss)
                         }
                     }
                     .padding(6)
@@ -1296,15 +1389,15 @@ private struct ExtensionMenu: View {
             Divider().overlay(Palette.hairline)
             VStack(spacing: 1) {
                 Foot("storefront", "Chrome Web Store…") {
-                    extensions.menuOpen = false
+                    extensions.menuOpen = false; dismiss?()
                     extensions.browser?.open(Browser.webStore, foreground: true)
                 }
                 Foot("folder", "Load Unpacked…") {
-                    extensions.menuOpen = false
+                    extensions.menuOpen = false; dismiss?()
                     DispatchQueue.main.async { extensions.installFolder() }
                 }
                 Foot("gearshape", "Manage Extensions…") {
-                    extensions.menuOpen = false
+                    extensions.menuOpen = false; dismiss?()
                     Store.settings.set("extensions", forKey: "settings.page")
                     extensions.browser?.tuning = true
                 }
@@ -1318,6 +1411,7 @@ private struct ExtensionMenu: View {
     private struct Row: View {
         let button: Extensions.Button
         @ObservedObject var extensions: Extensions
+        var dismiss: (() -> Void)?
         @State private var hovering = false
 
         var body: some View {
@@ -1345,7 +1439,7 @@ private struct ExtensionMenu: View {
             .onTapGesture {
                 // The list goes first; the popup, if there is one, then
                 // hangs from the puzzle button it came out of.
-                extensions.menuOpen = false
+                extensions.menuOpen = false; dismiss?()
                 let id = button.id
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { extensions.press(id) }
             }

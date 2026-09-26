@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import WebKit
 
 // What you have kept. Downloads work already; this is only the memory of them,
 // so a file you fetched an hour ago is one click from the Finder rather than a
@@ -17,9 +18,44 @@ struct Keep: Codable, Identifiable, Equatable {
     var stillThere: Bool { FileManager.default.fileExists(atPath: path) }
 }
 
+/// A download still coming: its name once WebKit has one, and how far along.
+@MainActor
+final class Haul: ObservableObject, Identifiable {
+    let id = UUID()
+    let download: WKDownload
+    @Published var name = "Download"
+    @Published var fraction: Double = 0
+    private var watch: NSKeyValueObservation?
+
+    init(_ download: WKDownload) {
+        self.download = download
+        watch = download.progress.observe(\.fractionCompleted, options: [.initial, .new]) { [weak self] progress, _ in
+            let through = progress.fractionCompleted
+            Task { @MainActor in self?.fraction = through }
+        }
+    }
+
+    func cancel() { download.cancel { _ in } }
+}
+
 @MainActor
 final class Loot: ObservableObject {
     @Published private(set) var kept: [Keep] = []
+    /// What is still arriving, newest first.
+    @Published private(set) var hauls: [Haul] = []
+
+    func start(_ download: WKDownload) {
+        guard !hauls.contains(where: { $0.download === download }) else { return }
+        hauls.insert(Haul(download), at: 0)
+    }
+
+    func name(_ download: WKDownload, _ name: String) {
+        hauls.first { $0.download === download }?.name = name
+    }
+
+    func end(_ download: WKDownload) {
+        hauls.removeAll { $0.download === download }
+    }
 
     init() { load() }
 

@@ -18,8 +18,8 @@ import WebKit
 struct Space: Codable, Identifiable, Equatable {
     var id: UUID
     var name: String
-    /// Which of `Spaces.colours` — from before spaces had icons; kept so an
-    /// older list still reads.
+    /// Which of `Spaces.tints`. An older list's index still reads: the first
+    /// of those colours is the rose a space wore when it had no choice yet.
     var colour: Int
     /// Its icon, one of `Spaces.icons`.
     var icon: String?
@@ -30,6 +30,20 @@ struct Space: Codable, Identifiable, Equatable {
     var sharesSignIns: Bool?
     /// Where this space's downloads go; nil for the folder in Settings.
     var downloads: String?
+    /// Light, dark, or whichever the window is: the pastel can be worn on a
+    /// dark window, and the deep colour on a light one. Nil is the window's.
+    var tone: Tone?
+
+    enum Tone: String, Codable, CaseIterable {
+        case auto, light, dark
+        var title: String {
+            switch self {
+            case .auto: return "Auto"
+            case .light: return "Light"
+            case .dark: return "Dark"
+            }
+        }
+    }
 
     /// The first space: the session and the store there were before spaces.
     static let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
@@ -38,18 +52,116 @@ struct Space: Codable, Identifiable, Equatable {
     /// The icon it shows: its own, or a house for the first and a
     /// briefcase for any other that has none yet.
     var symbol: String { icon.flatMap { Spaces.icons.contains($0) ? $0 : nil } ?? (isFirst ? "house" : "briefcase") }
+
+    /// An emoji chosen for its icon, in place of a symbol.
+    var emoji: String? {
+        guard let icon, !icon.isEmpty, !Spaces.icons.contains(icon) else { return nil }
+        return icon
+    }
+
+    /// An icon was chosen, symbol or emoji. A space without one is a dot.
+    var hasIcon: Bool { icon?.isEmpty == false }
+
+    /// The colour's variant this space wears on a window that is `dark`.
+    func wearsDark(on dark: Bool) -> Bool {
+        switch tone ?? .auto {
+        case .auto: return dark
+        case .light: return false
+        case .dark: return true
+        }
+    }
 }
 
 enum Spaces {
-    static let colours: [Color] = [
-        Color(red: 0.45, green: 0.47, blue: 0.52), // slate
-        Color(red: 0.26, green: 0.52, blue: 0.96), // blue
-        Color(red: 0.20, green: 0.66, blue: 0.45), // green
-        Color(red: 0.96, green: 0.62, blue: 0.20), // orange
-        Color(red: 0.90, green: 0.33, blue: 0.40), // red
-        Color(red: 0.62, green: 0.40, blue: 0.90), // violet
+    /// A space's colour, light enough to be the column and the frame around
+    /// the page, and a darker twin of the same hue for a dark window. The
+    /// first is the rose Arc's own sidebar wears; the rest are the soft
+    /// presets from its theme picker.
+    struct Tint {
+        var name: String
+        var light: (CGFloat, CGFloat, CGFloat)
+        var dark: (CGFloat, CGFloat, CGFloat)
+    }
+
+    // Light: the pastel Arc wears, the two strongest held back a little so
+    // the frame round the page never outshouts the page. Dark: the same hue,
+    // low and quiet — a tint on near-black, as Arc does it, not a colour.
+    static let tints: [Tint] = [
+        Tint(name: "Rose", light: (0.937, 0.656, 0.665), dark: (0.220, 0.150, 0.152)),
+        Tint(name: "Pink", light: (1.00, 0.796, 0.824), dark: (0.228, 0.168, 0.180)),
+        Tint(name: "Peach", light: (1.00, 0.878, 0.827), dark: (0.220, 0.170, 0.150)),
+        Tint(name: "Butter", light: (1.00, 0.976, 0.898), dark: (0.220, 0.208, 0.167)),
+        Tint(name: "Mint", light: (0.871, 0.992, 0.922), dark: (0.150, 0.220, 0.179)),
+        Tint(name: "Sky", light: (0.863, 0.953, 0.988), dark: (0.150, 0.200, 0.220)),
+        Tint(name: "Periwinkle", light: (0.773, 0.776, 0.898), dark: (0.150, 0.151, 0.220)),
+        Tint(name: "Mauve", light: (0.945, 0.820, 0.925), dark: (0.220, 0.150, 0.209)),
+        Tint(name: "Coral", light: (0.970, 0.729, 0.679), dark: (0.232, 0.160, 0.144)),
+        Tint(name: "Sea", light: (0.627, 0.824, 0.745), dark: (0.150, 0.220, 0.192)),
+        Tint(name: "Sand", light: (0.925, 0.886, 0.824), dark: (0.220, 0.200, 0.167)),
+        Tint(name: "Lilac", light: (0.820, 0.733, 0.910), dark: (0.184, 0.150, 0.220)),
     ]
-    static let colourNames = ["Slate", "Blue", "Green", "Orange", "Red", "Violet"]
+
+    static func clamp(_ index: Int) -> Int {
+        let count = tints.count
+        guard count > 0 else { return 0 }
+        return ((index % count) + count) % count
+    }
+
+    /// The column, and the thin frame the page sits in.
+    static func ground(_ space: Space) -> Color {
+        Color(nsColor: nsGround(space))
+    }
+
+    static func nsGround(_ space: Space) -> NSColor {
+        let tint = tints[clamp(space.colour)]
+        return NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+            let c = space.wearsDark(on: dark) ? tint.dark : tint.light
+            return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+        }
+    }
+
+    /// The colour's own ink: its hue, strong enough to draw a folder in on
+    /// the column — deeper on the pastel, brighter on the deep colour.
+    static func accent(_ index: Int, dark: Bool) -> Color {
+        let c = tints[clamp(index)].light
+        let rgb = NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        rgb.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        return dark
+            ? Color(hue: hue, saturation: 0.42, brightness: 0.95)
+            : Color(hue: hue, saturation: 0.62, brightness: 0.62)
+    }
+
+    /// The swatch of one tone of a colour, for the picker.
+    static func swatch(_ index: Int, dark: Bool) -> Color {
+        let c = dark ? tints[clamp(index)].dark : tints[clamp(index)].light
+        return Color(red: c.0, green: c.1, blue: c.2)
+    }
+
+    /// A space's icon as an image, for the menus: its symbol, or its emoji
+    /// drawn into one.
+    @MainActor static func image(for space: Space) -> NSImage? {
+        guard let emoji = space.emoji else {
+            return NSImage(systemSymbolName: space.symbol, accessibilityDescription: nil)
+        }
+        let text = emoji as NSString
+        let font = NSFont.systemFont(ofSize: 13)
+        let size = NSSize(width: 16, height: 16)
+        return NSImage(size: size, flipped: false) { rect in
+            let attrs: [NSAttributedString.Key: Any] = [.font: font]
+            let drawn = text.size(withAttributes: attrs)
+            text.draw(at: NSPoint(x: rect.midX - drawn.width / 2, y: rect.midY - drawn.height / 2), withAttributes: attrs)
+            return true
+        }
+    }
+
+    /// The swatch, always the light colour, so a dot reads the same on a
+    /// dark window as on a light one.
+    static func swatch(_ index: Int) -> Color {
+        let c = tints[clamp(index)].light
+        return Color(red: c.0, green: c.1, blue: c.2)
+    }
 
     /// The icons a space can wear: Apple's own symbols, drawn in one weight
     /// and one grey, grouped as work, thinking, leisure and life.
@@ -58,12 +170,14 @@ enum Spaces {
         "sparkles", "brain.head.profile", "lightbulb", "gamecontroller", "beach.umbrella", "cup.and.saucer",
         "music.note", "film", "paintpalette", "camera", "house", "book",
         "graduationcap", "cart", "airplane", "dumbbell", "leaf", "heart",
+        "face.smiling", "person",
     ]
     static let iconNames = [
         "Work", "Office", "Desktop", "Laptop", "Code", "Terminal",
         "AI", "Thinking", "Ideas", "Games", "Leisure", "Café",
         "Music", "Film", "Art", "Photos", "Home", "Reading",
-        "Studies", "Shopping", "Travel", "Sport", "Nature", "Personal",
+        "Studies", "Shopping", "Travel", "Sport", "Nature", "Love",
+        "Personal", "Me",
     ]
 
     private static var file: URL { Store.file("spaces.json") }
@@ -256,6 +370,26 @@ extension Browser {
         Spaces.write(spaces)
     }
 
+    /// An emoji for the icon; empty takes the icon away, back to a dot.
+    func setSpaceEmoji(_ id: UUID, to text: String) {
+        guard let at = spaces.firstIndex(where: { $0.id == id }) else { return }
+        let first = text.trimmingCharacters(in: .whitespacesAndNewlines).first.map(String.init)
+        spaces[at].icon = first
+        Spaces.write(spaces)
+    }
+
+    func setSpaceTone(_ id: UUID, to tone: Space.Tone) {
+        guard let at = spaces.firstIndex(where: { $0.id == id }) else { return }
+        spaces[at].tone = tone == .auto ? nil : tone
+        Spaces.write(spaces)
+    }
+
+    func setSpaceColour(_ id: UUID, to index: Int) {
+        guard let at = spaces.firstIndex(where: { $0.id == id }) else { return }
+        spaces[at].colour = Spaces.clamp(index)
+        Spaces.write(spaces)
+    }
+
     func setSpaceDownloads(_ id: UUID, to folder: URL?) {
         guard let at = spaces.firstIndex(where: { $0.id == id }) else { return }
         spaces[at].downloads = folder?.path
@@ -289,6 +423,36 @@ extension Browser {
 
 // MARK: - the dot
 
+/// A space's icon: one of the symbols, or an emoji, drawn at one size.
+struct SpaceGlyph: View {
+    let space: Space
+    var size: CGFloat = 12
+
+    var body: some View {
+        SpaceGlyph.drawn(space.emoji ?? space.symbol, size: size)
+    }
+
+    /// A symbol's name, or an emoji — anything not a symbol is text.
+    @ViewBuilder
+    static func drawn(_ icon: String, size: CGFloat) -> some View {
+        if Spaces.icons.contains(icon) || icon == "plus" {
+            Image(systemName: icon).font(.system(size: size, weight: .medium))
+        } else {
+            Text(icon).font(.system(size: size + 1))
+        }
+    }
+
+    /// The emoji, asked for with the Mac's own picker open beside it.
+    @MainActor static func askEmoji(for space: Space, browser: Browser) {
+        Ask.name("Emoji for “\(space.name)”", placeholder: "🙂", initial: space.emoji ?? "", confirm: "Use") {
+            browser.setSpaceEmoji(space.id, to: $0)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            NSApp.orderFrontCharacterPalette(nil)
+        }
+    }
+}
+
 /// The space on screen, as its icon: at the column's foot, or before the
 /// tabs in the row. One icon however many spaces there are; a click opens
 /// the menu. When the space changes the icon turns over the way the spaces
@@ -303,15 +467,14 @@ struct SpaceDot: View {
 
     static let width: CGFloat = 26
 
-    private var symbol: String { browser.makingSpace ? "plus" : browser.space.symbol }
-    private var key: String { browser.makingSpace ? "new" : "\(browser.spaceID.uuidString)-\(browser.space.symbol)" }
+    private var symbol: String { browser.makingSpace ? "plus" : (browser.space.emoji ?? browser.space.symbol) }
+    private var key: String { browser.makingSpace ? "new" : "\(browser.spaceID.uuidString)-\(symbol)" }
 
     var body: some View {
         Button { SpaceMenu.show(for: browser) } label: {
             ZStack {
-                Image(systemName: shown?.symbol ?? symbol)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(hovering ? Palette.ink : Palette.muted)
+                SpaceGlyph.drawn(shown?.symbol ?? symbol, size: 12)
+                    .foregroundStyle(hovering ? Palette.ink : Palette.quiet)
                     .id(shown?.key ?? key)
                     // The way the tabs go: sideways in the column; in the bar
                     // across the top, up for the next space, down going back.
@@ -323,7 +486,7 @@ struct SpaceDot: View {
             .clipped()
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(hovering ? Palette.hover : .clear)
+                    .fill(hovering ? Palette.veil : .clear)
             )
             .contentShape(Rectangle())
         }
@@ -369,7 +532,7 @@ enum SpaceMenu {
             let entry = item(space.name, key: index < 9 ? "\(index + 1)" : "", checked: space.id == browser.spaceID) {
                 browser.switchSpace(to: space.id)
             }
-            entry.image = NSImage(systemSymbolName: space.symbol, accessibilityDescription: nil)
+            entry.image = Spaces.image(for: space)
             menu.addItem(entry)
         }
         menu.addItem(.separator())
@@ -384,6 +547,11 @@ enum SpaceMenu {
             let choice = item(name, checked: here.symbol == symbol) { browser.setSpaceIcon(here.id, to: symbol) }
             choice.image = NSImage(systemSymbolName: symbol, accessibilityDescription: name)
             icons.addItem(choice)
+        }
+        icons.addItem(.separator())
+        icons.addItem(item("Emoji…") { SpaceGlyph.askEmoji(for: here, browser: browser) })
+        if here.hasIcon {
+            icons.addItem(item("No Icon") { browser.setSpaceEmoji(here.id, to: "") })
         }
         let icon = NSMenuItem(title: "Icon", action: nil, keyEquivalent: "")
         icon.submenu = icons

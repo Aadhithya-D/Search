@@ -80,6 +80,10 @@ struct Fold: View {
 
     /// How near the edge the pointer has to be.
     private static let edge: CGFloat = 6
+    /// The floating column's inset from the window, the same as the page's,
+    /// and its corners, the same as the page's.
+    static let inset: CGFloat = 8
+    static let corner: CGFloat = 10
     /// How near the column's edge its handle fades in.
     private static let approach: CGFloat = 56
     /// The grace before the column goes back in.
@@ -128,9 +132,20 @@ struct Fold: View {
             ZStack(alignment: prefs.sideRight ? .trailing : .leading) {
                 Color.clear.frame(width: 0)
                 if folding, prefs.sidebar, browser.peeking {
-                    SideBar(browser: browser, prefs: prefs, bookmarks: browser.bookmarks)
-                        .shadow(color: .black.opacity(0.14), radius: 20, x: prefs.sideRight ? -4 : 4)
-                        .transition(.move(edge: prefs.sideRight ? .trailing : .leading))
+                    // A card of its own over the page, as in Arc and Zen: in
+                    // from the edge, lined up with the page's own rounded
+                    // corners, and floating free of the frame round it.
+                    SideBar(browser: browser, prefs: prefs, bookmarks: browser.bookmarks, floating: true)
+                        .clipShape(RoundedRectangle(cornerRadius: Fold.corner, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Fold.corner, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.10), lineWidth: 0.5)
+                                .allowsHitTesting(false)
+                        )
+                        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 6)
+                        .padding(.vertical, Fold.inset)
+                        .padding(prefs.sideRight ? .trailing : .leading, Fold.inset)
+                        .transition(.move(edge: prefs.sideRight ? .trailing : .leading).combined(with: .opacity))
                 }
             }
             .frame(maxHeight: .infinity)
@@ -161,6 +176,9 @@ struct Fold: View {
             watch()
         })
         .onChange(of: lightsOff) { _, _ in hideLights() }
+        .onChange(of: lightsInCard, initial: true) { _, card in
+            Lights.nudge(card ? CGSize(width: Fold.inset, height: Fold.inset) : .zero)
+        }
         .onChange(of: watching) { _, _ in watch() }
         // Back to the strip and then to the column again: the column comes
         // back as it rests — whole, not folded from a time nobody remembers,
@@ -220,6 +238,9 @@ struct Fold: View {
     /// The address bar drawn over the page. Typing into a loaded page keeps
     /// it there; a blank tab's field is the one in the middle.
     private var barOverlay: Bool {
+        // In the column the address is a row of the column, not a bar
+        // across the page.
+        guard !prefs.sidebar else { return false }
         guard prefs.barHides, browser.active?.immersed != true else { return false }
         let typing = browser.editing && browser.active?.isBlank != true
         return browser.barPeeking || typing
@@ -246,10 +267,19 @@ struct Fold: View {
         if !prefs.sidebar {
             return browser.folded && !browser.peeking
         }
-        let leftHolding = !prefs.sideRight && (!browser.folded || browser.peeking)
-        let typing = browser.editing && browser.active?.isBlank != true
-        let barHolding = !prefs.barHides || browser.barPeeking || typing
-        return !leftHolding && !barHolding
+        // A column on the right never holds them: they stay in the window's
+        // corner, on the space's colour. On the left they go with the column.
+        if prefs.sideRight { return false }
+        return browser.folded && !browser.peeking
+    }
+
+    /// The column on the left, folded: when it comes out it is a card set in
+    /// from the window's corner, and the lights go into the card with it —
+    /// in by its inset, as far from its edges as from the docked column's.
+    /// Held for as long as it stays folded, so the lights never shift while
+    /// they are sliding in or out with the card; they are off screen between.
+    private var lightsInCard: Bool {
+        prefs.sidebar && !prefs.sideRight && browser.folded
     }
 
     /// The pointer is watched only while there is something folded for it
@@ -305,7 +335,7 @@ struct Fold: View {
     private func followSide(distance: CGFloat, inWindow: Bool, onWindow: Bool, onOwnPanel: Bool) {
         if browser.peeking {
             pass()
-            let over = onOwnPanel || (onWindow && inWindow && distance >= 0 && distance < prefs.sideWidth)
+            let over = onOwnPanel || (onWindow && inWindow && distance >= 0 && distance < prefs.sideWidth + Fold.inset)
             if over != inside { inside = over }
             peek(over)
         } else if inWindow, onWindow, distance >= 0, distance < Fold.edge {
@@ -450,7 +480,7 @@ struct Fold: View {
     private func hideLights() {
         guard let bar = Fold.titlebar else { return }
         if prefs.sidebar {
-            Fold.slide(bar, off: lightsOff, by: URLBar.height, up: true)
+            Fold.slide(bar, off: lightsOff, by: URLBar.height + Lights.nudge.height, up: true)
         } else {
             Fold.slide(bar, off: lightsOff, by: Metrics.strip, up: true)
         }

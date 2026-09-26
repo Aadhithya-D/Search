@@ -39,7 +39,11 @@ struct SideBar: View {
     @ObservedObject var browser: Browser
     @ObservedObject var prefs: Preferences
     @ObservedObject var bookmarks: Bookmarks
+    /// Out over the page from the window's edge, as a card of its own
+    /// rather than the column beside the page (see Fold.swift).
+    var floating = false
 
+    @Environment(\.colorScheme) private var windowScheme
     @Namespace private var pill
 
     @State private var landing = false
@@ -63,6 +67,8 @@ struct SideBar: View {
     /// Bookmark rows, measured in the column, for a tab dropped onto one.
     @State private var spots: [MarkSpot] = []
     @State private var overSection = false
+    /// The theme, open off the space on screen.
+    @State private var theming = false
     /// Held as state, not observed here: the folder lighting up must not
     /// redraw the tab under the hand, or the drag would be dropped.
     @State private var aim = DropAim()
@@ -75,7 +81,7 @@ struct SideBar: View {
     /// "Bookmarks" and "Tabs", the labels that split the column.
     private static let section: CGFloat = 26
     private static let square: CGFloat = 34
-    private static let pinGap: CGFloat = 4
+    private static let pinGap: CGFloat = 6
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -98,14 +104,33 @@ struct SideBar: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 // The traffic lights' corner, when the column is on the left.
-                // Back, forward and reload live in the address bar beside it.
-                HStack(spacing: 0) {
+                // Back, forward and reload sit on that same line, and the
+                // address is the row under them — the page beside has none.
+                HStack(spacing: 2) {
                     if !prefs.sideRight {
                         Color.clear.frame(width: Metrics.sideLights)
                     }
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
+                    // Never wider than the column: a narrow one keeps the
+                    // three doors and lets the extensions' button go — the
+                    // same list is in the site's controls, under the address
+                    // — rather than pushing the column out past its edges.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 2) {
+                            ExtensionSlot(edge: .bottom)
+                            Helm(browser: browser)
+                        }
+                        Helm(browser: browser)
+                    }
                 }
-                .frame(height: URLBar.height)
+                // Out over the page the card starts its inset below the
+                // window's top, and the lights come down into it by as much
+                // (Lights.nudge), so the row is the same as docked.
+                .frame(width: prefs.sideWidth - 20, height: URLBar.height)
+
+                SideAddress(browser: browser)
+                    .padding(.bottom, SideAddress.below)
+                    .zIndex(2)
 
                 // The spaces side by side, as pages: two fingers sideways move
                 // the one on screen and the next one together, the next one
@@ -115,6 +140,7 @@ struct SideBar: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10)
+            .frame(width: prefs.sideWidth)
             // Clear of the foot, which sits over the column's bottom edge.
             .padding(.bottom, SideBar.footHeight)
 
@@ -128,11 +154,16 @@ struct SideBar: View {
         // Rows on their way to or from another space stay in the column.
         .clipped()
         .onAppear { SpaceSwipe.shared.start(for: browser) }
-        .background(landing ? Palette.hover : Palette.ground)
-        .overlay(alignment: prefs.sideRight ? .leading : .trailing) {
-            Rectangle().fill(Palette.hairline).frame(width: 1)
+        .background {
+            ZStack {
+                Spaces.ground(browser.space)
+                Grain()
+            }
         }
-        .overlay(alignment: prefs.sideRight ? .leading : .trailing) { edge }
+        .overlay(alignment: prefs.sideRight ? .leading : .trailing) { if !floating { edge } }
+        // A pastel worn on a dark window takes dark ink, and the other way
+        // round: the column is drawn in its colour's own light or dark.
+        .environment(\.colorScheme, browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light)
         .onDrop(of: [.url, .text], isTargeted: $landing) { providers in
             browser.take(providers)
         }
@@ -291,13 +322,14 @@ struct SideBar: View {
                 }
                 .padding(.bottom, 8)
             }
-            section("Bookmarks")
+            section(browser.spaces.first { $0.id == space })
             SideMarks(
                 browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: idleAim,
                 tree: bookmarks.nodes(in: space),
-                tabs: row.tabs, active: row.active
+                tabs: row.tabs, active: row.active,
+                colour: browser.spaces.first { $0.id == space }?.colour
             )
-            section("Tabs")
+            rule
             newTab
             VStack(spacing: SideBar.gap) {
                 ForEach(rest) { tab in
@@ -321,8 +353,8 @@ struct SideBar: View {
         let loose = CGFloat(looseCount) * (SideBar.row + SideBar.gap)
         let marks = CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty))
             * (SideBar.row + SideBar.gap)
-        // Two section titles, New Folder, the bookmark rows, the loose tabs, and New Tab.
-        return URLBar.height + pinBlock + SideBar.section * 2 + marks + loose + (SideBar.row + SideBar.gap) * 2 + 16
+        // The lights, the address, the space's name, the bookmark rows, New Tab, and the loose tabs.
+        return URLBar.height + SideAddress.block + pinBlock + SideBar.section + marks + SideBar.ruleHeight + loose + (SideBar.row + SideBar.gap) + 16
     }
 
     // MARK: - the pinned squares
@@ -530,51 +562,84 @@ struct SideBar: View {
     /// once the column is full; the pins stay above them.
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
-            self.section("Bookmarks")
+            section(browser.space)
                 .onDrop(of: [.text], isTargeted: $overSection) { providers in relocate(providers, into: nil) }
-            Quiet(icon: "folder.badge.plus", title: "New Folder", height: SideBar.row) {
-                Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
-                    let made = bookmarks.makeFolder(title)
-                    foldersOpen.insert(made.id)
+                .contextMenu {
+                    Button("New Folder") { newFolder(into: nil) }
+                    Button("Theme…") { theming = true }
                 }
-            }
             SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
-            section("Tabs")
+            rule
             newTab
             loose
         }
     }
 
-    /// The small label a section of the column is filed under.
-    private func section(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Palette.muted)
-            .padding(.leading, 4)
-            .frame(height: SideBar.section, alignment: .bottomLeading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+    /// The space's name over its bookmarks, with its icon when it has one.
+    /// Its first letter lines up with the icons of the rows beneath it.
+    private func section(_ space: Space?) -> some View {
+        HStack(spacing: 6) {
+            if let space, space.hasIcon {
+                SpaceGlyph(space: space, size: 10)
+                    .foregroundStyle(Palette.quiet)
+            }
+            Text(space?.name ?? "")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Palette.quiet)
+        }
+        .padding(.leading, SideBar.inset)
+        .padding(.bottom, 4)
+        .frame(height: SideBar.section, alignment: .bottomLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// The foot's door and its margin beneath.
-    private static let footHeight: CGFloat = 26 + 10
+    /// Where every row's icon starts, and the section's first letter.
+    fileprivate static let inset: CGFloat = 10
+    fileprivate static let ruleHeight: CGFloat = 1 + 16
+
+    /// The hairline between the space's bookmarks and its loose tabs, as Arc
+    /// draws it.
+    private var rule: some View {
+        Rectangle()
+            .fill(Palette.ink.opacity(0.09))
+            .frame(height: 1)
+            .padding(.horizontal, SideBar.inset)
+            .padding(.vertical, 8)
+    }
+
+    /// The foot's doors and the margin beneath.
+    private static let footHeight: CGFloat = 26 + 12
 
     private var newTab: some View {
-        Quiet(icon: "plus.square", title: "New Tab", height: SideBar.row) { browser.newTab() }
+        Quiet(icon: "plus", title: "New Tab", height: SideBar.row) { browser.newTab() }
             .padding(.top, SideBar.gap)
     }
 
-    /// One small door at the bottom: the settings.
-    private var foot: some View {
-        HStack(spacing: 2) {
-            if browser.prefs.usesSpaces { SpaceDot(browser: browser) }
-            Door(icon: "bookmark", help: "Bookmarks") { browser.bookmarksOpen.toggle() }
-                .popover(isPresented: $browser.bookmarksOpen, arrowEdge: browser.prefs.sideRight ? .leading : .trailing) {
-                    BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks)
-                }
-            Spacer(minLength: 0)
+    private func newFolder(into parent: Bookmark.ID?) {
+        Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
+            let made = bookmarks.makeFolder(title, into: parent)
+            if let parent { foldersOpen.insert(parent) }
+            foldersOpen.insert(made.id)
         }
-        .padding(.horizontal, 10)
-        .padding(.bottom, 10)
+    }
+
+    /// The spaces, as their colours. The one on screen opens the theme;
+    /// any other is switched to. A bookmark list is a right-click away,
+    /// not a door of its own.
+    private var foot: some View {
+        ZStack {
+            SpaceStrip(browser: browser, theming: $theming)
+            // One door either side, the same width, so the spaces between
+            // them sit in the true middle of the column.
+            HStack(spacing: 0) {
+                Library(browser: browser, loot: browser.loot)
+                Spacer(minLength: 0)
+                Door(icon: "plus", help: "New Space") { browser.askForSpace() }
+            }
+        }
+        .frame(height: 26)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 12)
     }
 
 }
@@ -592,6 +657,8 @@ private struct SideMarks: View {
     var tree: [Bookmark]? = nil
     var tabs: [Tab]? = nil
     var active: Tab.ID? = nil
+    /// That space's colour, for its folders. Absent, the one on screen.
+    var colour: Int? = nil
 
     @State private var overEmpty = false
 
@@ -604,8 +671,8 @@ private struct SideMarks: View {
             if shown.isEmpty {
                 Text("No bookmarks yet")
                     .font(.system(size: 12))
-                    .foregroundStyle(Palette.faint)
-                    .padding(.leading, 8)
+                    .foregroundStyle(Palette.hush)
+                    .padding(.leading, SideBar.inset)
                     .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
                     .onDrop(of: [.text], isTargeted: $overEmpty) { providers in
                         guard live else { return false }
@@ -620,7 +687,7 @@ private struct SideMarks: View {
         .background { spot(nil, folder: false) }
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(live && aim.mark.root ? Palette.hover : Color.clear)
+                .fill(live && aim.mark.root ? Palette.veil : Color.clear)
         )
     }
 
@@ -670,8 +737,8 @@ private struct SideMarks: View {
                 if kids.isEmpty {
                     Text("Empty")
                         .font(.system(size: 12))
-                        .foregroundStyle(Palette.faint)
-                        .padding(.leading, indent(depth + 1) + 8)
+                        .foregroundStyle(Palette.hush)
+                        .padding(.leading, indent(depth + 1) + SideBar.inset + 23)
                         .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
                 } else {
                     // The rows call this folder back. AnyView is what lets a
@@ -685,7 +752,7 @@ private struct SideMarks: View {
         .background { spot(node.id, folder: true) }
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(live && aim.mark.folder == node.id ? Palette.wash : (opened ? Palette.hover : Color.clear))
+                .fill(live && aim.mark.folder == node.id ? Palette.veilStrong : (opened ? Palette.veil : Color.clear))
         )
     }
 
@@ -697,7 +764,14 @@ private struct SideMarks: View {
             node, depth: depth, folder: false, opened: false,
             live: openTab?.id == liveID,
             close: openTab.map { tab in { browser.close(tab) } },
-            newFolder: nil
+            newFolder: live ? {
+                let parent = bookmarks.parent(of: node.id)
+                Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
+                    let made = bookmarks.makeFolder(title, into: parent)
+                    if let parent { open.insert(parent) }
+                    open.insert(made.id)
+                }
+            } : nil
         ) {
             guard let text = node.url, let url = URL(string: text) else { return }
             if NSApp.currentEvent?.modifierFlags.contains(.command) == true {
@@ -728,7 +802,8 @@ private struct SideMarks: View {
             addPage: folder && live ? { if let tab = browser.active { browser.file(tab, into: node.id) } } : nil,
             canAdd: browser.active?.isBlank == false,
             moveTargets: targets,
-            moveTo: { bookmarks.move(node.id, into: $0) }
+            moveTo: { bookmarks.move(node.id, into: $0) },
+            tint: colour ?? browser.space.colour
         ) {
             if let close { close() }
             bookmarks.remove(node.id)
@@ -763,7 +838,11 @@ private struct SideMarks: View {
             guard let text = object as? String, let id = UUID(uuidString: text) else { return }
             DispatchQueue.main.async {
                 if let sibling {
-                    self.bookmarks.move(id, before: sibling)
+                    // A page dropped on a page becomes a folder. Anything
+                    // else — a folder onto a page — takes that page's place.
+                    if self.bookmarks.combine(id, onto: sibling) == nil {
+                        self.bookmarks.move(id, before: sibling)
+                    }
                 } else {
                     self.bookmarks.move(id, into: folder)
                     if let folder {
@@ -792,28 +871,28 @@ private struct SideMarks: View {
         let canAdd: Bool
         let moveTargets: [(node: Bookmark, depth: Int)]
         let moveTo: (Bookmark.ID?) -> Void
+        /// The space's colour, which its folders are drawn in.
+        let tint: Int
         let remove: () -> Void
         let openNew: () -> Void
         let dropped: ([NSItemProvider]) -> Bool
 
         @State private var hovering = false
         @State private var over = false
+        @Environment(\.colorScheme) private var scheme
 
         /// The same quiet as a tab you are not on. A folder stays readable;
         /// a page does not, until it is the one open.
         private var title: Color {
             if folder { return hovering ? Palette.ink : Palette.ink.opacity(0.9) }
             if live { return Palette.ink }
-            return hovering ? Palette.ink.opacity(0.7) : Palette.muted
+            return hovering ? Palette.ink : Palette.ink.opacity(0.78)
         }
 
         var body: some View {
             HStack(spacing: 8) {
                 if folder {
-                    Image(systemName: "folder")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Palette.muted)
-                        .frame(width: 15, height: 15)
+                    FolderIcon(open: opened, tint: tint)
                 } else {
                     Mark(
                         icon: Favicons.shared.cached(node.host ?? ""),
@@ -831,17 +910,30 @@ private struct SideMarks: View {
                 if folder {
                     Image(systemName: opened ? "chevron.up" : "chevron.down")
                         .font(.system(size: 8, weight: .semibold))
-                        .foregroundStyle(Palette.faint)
+                        .foregroundStyle(Palette.hush)
                 }
             }
-            .padding(.leading, 8 + CGFloat(depth) * 14)
+            .padding(.leading, SideBar.inset + CGFloat(depth) * 14)
             .padding(.trailing, 8)
             .frame(height: SideBar.row)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(live || lit || over ? Palette.wash : (hovering && !opened ? Palette.hover : Color.clear))
+                    .fill(live || lit ? SideTone.chip(scheme, strong: true) : (over && !folder ? SideTone.chip(scheme, strong: true) : (hovering && !opened ? SideTone.chip(scheme, strong: false) : Color.clear)))
             )
+            .overlay(alignment: .leading) {
+                // Dropping a page here makes a folder of the two. The icon
+                // arrives while the pointer is still deciding.
+                if over, !folder {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.ink.opacity(0.7))
+                        .padding(.leading, 10)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                }
+            }
+            .scaleEffect(over && !folder ? 1.035 : 1)
+            .shadow(color: .black.opacity(over && !folder ? 0.12 : 0), radius: 8, y: 3)
             .contentShape(Rectangle())
             .onTapGesture(perform: act)
             .onHover { hovering = $0 }
@@ -855,7 +947,7 @@ private struct SideMarks: View {
                     ZStack {
                         Image(systemName: "xmark")
                             .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(Palette.muted)
+                            .foregroundStyle(Palette.quiet)
                             .frame(width: 15, height: 15)
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .allowsHitTesting(false)
@@ -899,6 +991,7 @@ private struct SideMarks: View {
             .help(node.url ?? node.title)
             .animation(Motion.quick, value: hovering)
             .animation(Motion.quick, value: opened)
+            .animation(Motion.settle, value: over)
         }
     }
 }
@@ -975,6 +1068,7 @@ private struct PinSquare: View {
     var height: CGFloat = 34
 
     @State private var hovering = false
+    @Environment(\.colorScheme) private var scheme
 
     /// Everything drawn inside scales off the shorter edge — the one that
     /// stays put — so the glyph sits at its usual size, centred, rather than
@@ -990,7 +1084,7 @@ private struct PinSquare: View {
             } else {
                 Text(tab.pin ?? "")
                     .font(.system(size: scale * 12 / 34, weight: .medium))
-                    .foregroundStyle((live ? Palette.ink : Palette.muted).opacity(tab.asleep ? 0.45 : 1))
+                    .foregroundStyle((live ? Palette.ink : Palette.quiet).opacity(tab.asleep ? 0.45 : 1))
             }
         }
         .frame(width: scale * 16 / 34, height: scale * 16 / 34)
@@ -998,11 +1092,11 @@ private struct PinSquare: View {
         .background {
             if live {
                 RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous)
-                    .fill(Palette.wash)
+                    .fill(SideTone.chip(scheme, strong: true))
                     .matchedGeometryEffect(id: "live", in: pill)
             } else {
                 RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous)
-                    .fill(hovering ? Palette.hover : Palette.wash.opacity(0.55))
+                    .fill(SideTone.chip(scheme, strong: false).opacity(hovering ? 1 : 0.7))
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous))
@@ -1030,6 +1124,7 @@ private struct SideRow: View {
 
     @State private var hovering = false
     @State private var shake: CGFloat = 0
+    @Environment(\.colorScheme) private var scheme
 
     private var editing: Bool { browser.editingTab == tab.id }
 
@@ -1047,8 +1142,17 @@ private struct SideRow: View {
                 TabAddressField(browser: browser)
                     .frame(height: 16)
             } else {
-                if prefs.glyph == .icons, !tab.isBlank {
-                    Mark(icon: tab.icon, letter: tab.monogram, size: 15)
+                if prefs.glyph == .icons {
+                    if tab.isBlank {
+                        // Nothing to show yet, but the title still starts
+                        // where every other row's does.
+                        Image(systemName: "globe")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Palette.hush)
+                            .frame(width: 15, height: 15)
+                    } else {
+                        Mark(icon: tab.icon, letter: tab.monogram, size: 15)
+                    }
                 }
                 if tab.bench {
                     // A script's tab, not yours.
@@ -1085,7 +1189,7 @@ private struct SideRow: View {
                 .padding(.trailing, hovering && speaker ? 23 : 0)
             }
         }
-        .padding(.leading, 10)
+        .padding(.leading, SideBar.inset)
         .padding(.trailing, status ? 7 : 10)
         .frame(height: 28)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1109,7 +1213,7 @@ private struct SideRow: View {
                     if hovering {
                         Image(systemName: "xmark")
                             .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(Palette.muted)
+                            .foregroundStyle(Palette.quiet)
                             .frame(width: 15, height: 15)
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .transition(.opacity)
@@ -1131,7 +1235,7 @@ private struct SideRow: View {
         .modifier(Shake(travel: shake))
         .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .modifier(OneClick(double: false) {
-            if live { browser.beginTabEdit(tab) } else { browser.select(tab) }
+            browser.select(tab)
         })
         .overlay { MiddleClick(act: close) }
         .onHover { hovering = $0 }
@@ -1150,7 +1254,7 @@ private struct SideRow: View {
     private var ground: some View {
         if live {
             ZStack(alignment: .leading) {
-                Rectangle().fill(Palette.wash)
+                Rectangle().fill(SideTone.chip(scheme, strong: true))
                 if prefs.showsReading {
                     GeometryReader { geo in
                         Rectangle()
@@ -1164,14 +1268,597 @@ private struct SideRow: View {
             .matchedGeometryEffect(id: "live", in: pill)
         } else if hovering {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Palette.hover)
+                .fill(SideTone.chip(scheme, strong: false))
         }
     }
 
     private var colour: Color {
         if live { return Palette.ink }
-        return hovering ? Palette.ink.opacity(0.7) : Palette.muted
+        return hovering ? Palette.ink : Palette.ink.opacity(0.78)
     }
+}
+
+/// White on the space's colour: the tab you are on, and the row under the pointer.
+private enum SideTone {
+    static func chip(_ scheme: ColorScheme, strong: Bool) -> Color {
+        if scheme == .dark {
+            return Color.white.opacity(strong ? 0.16 : 0.08)
+        }
+        return Color.white.opacity(strong ? 0.94 : 0.34)
+    }
+}
+
+/// The address, in the column, above the pins. At rest it is the site's name.
+/// The link copies it; the other door is the page's own controls.
+private struct SideAddress: View {
+    @ObservedObject var browser: Browser
+    @Environment(\.colorScheme) private var scheme
+    @State private var copied = false
+    @State private var controls = false
+
+    static let height: CGFloat = 32
+    /// The air under the pill before the pins: the pins' own gap and a
+    /// little more, so the address reads as a row of its own.
+    static let below: CGFloat = 8
+    /// The pill, and the air under it before the pins.
+    static let block: CGFloat = height + below
+
+    var body: some View {
+        pill
+        .overlay(alignment: .top) {
+            if browser.fieldShowing, browser.active?.isBlank != true, !browser.offers.isEmpty {
+                OfferList(browser: browser)
+                    .padding(.top, 40)
+                    .zIndex(2)
+            }
+        }
+    }
+
+    private var pill: some View {
+        HStack(spacing: 0) {
+            if typingHere {
+                AddressField(browser: browser, point: 12.5, prompt: browser.prefs.searchPrompt)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: 16)
+            } else {
+                Text(shown)
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(browser.active?.address == nil ? Palette.quiet : Palette.ink.opacity(0.9))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 0)
+            }
+            if let url = browser.active?.address, !typingHere {
+                // Clear of the host, however long it runs.
+                Color.clear.frame(width: 6)
+                PillKnob(symbol: copied ? "checkmark" : "link", help: copied ? "Copied" : "Copy Link") {
+                    browser.copyAddress()
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+                }
+                PillKnob(symbol: "slider.horizontal.3", help: "Site Settings and Extensions", on: controls) {
+                    controls = true
+                }
+                .background(ExtensionSiteAnchor())
+                .popover(isPresented: $controls, arrowEdge: .bottom) {
+                    SiteControls(browser: browser) { controls = false }.popGround()
+                }
+                .disabled(url.scheme == nil)
+            }
+        }
+        // The host starts where the rows' titles do; the knobs' own squares
+        // leave their symbols as far in from the other end.
+        .padding(.leading, 12)
+        .padding(.trailing, 4)
+        .frame(height: SideAddress.height)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(scheme == .dark ? Color.white.opacity(0.07) : Color.white.opacity(0.45))
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onTapGesture {
+            guard !typingHere else { return }
+            if browser.active?.isBlank == true { browser.askFocus() } else { browser.edit() }
+        }
+    }
+
+    private var typingHere: Bool {
+        browser.fieldShowing && browser.active?.isBlank != true
+    }
+
+    /// The host, as the column says it. The field, once open, has the rest.
+    private var shown: String {
+        guard let url = browser.active?.address else { return browser.prefs.searchPrompt }
+        if let host = url.host(), !host.isEmpty {
+            return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        }
+        return Address.pretty(url)
+    }
+}
+
+/// One of the pill's two buttons: the symbol in a square of its own that
+/// lights under the pointer, and stays lit while what it opened is open.
+private struct PillKnob: View {
+    let symbol: String
+    let help: String
+    var on = false
+    let act: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: act) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Palette.ink.opacity(hovering || on ? 0.9 : 0.65))
+                .frame(width: 24, height: 24)
+                .background(
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(Palette.ink.opacity(hovering || on ? 0.08 : 0))
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
+        .animation(Motion.quick, value: hovering)
+    }
+}
+
+/// What Safari keeps behind the page menu: the article, the size, and how
+/// the connection is doing. Copying the address is the link beside this.
+struct SiteControls: View {
+    @ObservedObject var browser: Browser
+    let close: () -> Void
+
+    var body: some View {
+        // Drawn as one menu, on the same measures as the site card inside
+        // it: every line's text from the same edge, one kind of separator.
+        VStack(alignment: .leading, spacing: 0) {
+            if let tab = browser.active, !tab.isBlank {
+                SiteCard(browser: browser, tab: tab, padded: false, reader: true, close: close)
+            }
+            // The extensions, for a column with no room for their button —
+            // where Arc keeps them too, behind the site's own menu.
+            if #available(macOS 15.4, *), !Extensions.shared.installed.isEmpty {
+                SiteCard.Separator()
+                ExtensionsInline(close: close)
+            }
+        }
+        .padding(.vertical, MenuMetrics.pad)
+        .frame(minWidth: 240)
+        .fixedSize()
+    }
+}
+
+/// Every space, in the middle of the foot: its icon if it was given one,
+/// otherwise a dot of its colour. The one on screen is lit; pressed again,
+/// it opens the theme.
+private struct SpaceStrip: View {
+    @ObservedObject var browser: Browser
+    @Binding var theming: Bool
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(browser.spaces) { space in
+                Chip(space: space, on: space.id == browser.spaceID) {
+                    if space.id == browser.spaceID {
+                        theming = true
+                    } else {
+                        browser.switchSpace(to: space.id)
+                    }
+                }
+                .contextMenu {
+                    Button("Theme and Icon…") {
+                        if browser.spaceID != space.id { browser.switchSpace(to: space.id) }
+                        theming = true
+                    }
+                    Button("Rename…") {
+                        Ask.name("Rename Space", placeholder: space.name, initial: space.name, confirm: "Rename") {
+                            browser.renameSpace(space.id, to: $0)
+                        }
+                    }
+                    if !space.isFirst {
+                        Button("Delete…") {
+                            Ask.sure("Delete “\(space.name)”?", detail: "Its tabs close, and its bookmarks, cookies and sign-ins are erased from this Mac. History stays.", confirm: "Delete") {
+                                browser.deleteSpace(space.id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .popover(isPresented: $theming, arrowEdge: .top) {
+            ThemePicker(browser: browser).popGround()
+        }
+    }
+
+    private struct Chip: View {
+        let space: Space
+        let on: Bool
+        let act: () -> Void
+        @State private var hovering = false
+
+        var body: some View {
+            Group {
+                if space.hasIcon {
+                    SpaceGlyph(space: space, size: 11)
+                        .foregroundStyle(on ? Palette.ink : Palette.quiet)
+                        .opacity(on || hovering ? 1 : 0.7)
+                } else {
+                    Circle()
+                        .fill(on ? Palette.ink.opacity(0.85) : Palette.ink.opacity(hovering ? 0.5 : 0.28))
+                        .frame(width: on ? 7 : 6, height: on ? 7 : 6)
+                }
+            }
+            .frame(width: 22, height: 22)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(hovering ? Palette.veil : .clear)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture(perform: act)
+            .onHover { hovering = $0 }
+            .help(on ? "\(space.name) — theme and icon" : space.name)
+            .animation(Motion.quick, value: hovering)
+            .animation(Motion.quick, value: on)
+        }
+    }
+}
+
+/// The space's colour, light or dark, and its icon: a symbol or an emoji.
+private struct ThemePicker: View {
+    @ObservedObject var browser: Browser
+    @Environment(\.colorScheme) private var scheme
+    @State private var emoji = ""
+
+    private let columns = Array(repeating: GridItem(.fixed(26), spacing: 6), count: 6)
+    private let iconColumns = Array(repeating: GridItem(.fixed(26), spacing: 4), count: 7)
+
+    private var space: Space { browser.space }
+
+    /// The swatches in the tone the column will actually wear.
+    private var showsDark: Bool { space.wearsDark(on: scheme == .dark) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(space.name)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Palette.ink)
+
+            Picker("", selection: Binding(
+                get: { space.tone ?? .auto },
+                set: { browser.setSpaceTone(space.id, to: $0) }
+            )) {
+                ForEach(Space.Tone.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .help("Auto follows the window. Light keeps the pastel on a dark window; Dark keeps the deep colour on a light one.")
+
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(Array(Spaces.tints.enumerated()), id: \.offset) { index, tint in
+                    let on = Spaces.clamp(space.colour) == index
+                    Circle()
+                        .fill(Spaces.swatch(index, dark: showsDark))
+                        .frame(width: 22, height: 22)
+                        .overlay {
+                            Circle().strokeBorder(Color.primary.opacity(on ? 0.85 : 0.12), lineWidth: on ? 2 : 1)
+                        }
+                        .frame(width: 26, height: 26)
+                        .contentShape(Circle())
+                        .onTapGesture { browser.setSpaceColour(space.id, to: index) }
+                        .help(tint.name)
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Text("Icon")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Palette.muted)
+                Spacer()
+                TextField("Emoji", text: $emoji)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 64)
+                    .onSubmit { browser.setSpaceEmoji(space.id, to: emoji) }
+                    .onChange(of: emoji) { _, now in
+                        // One character, taken as soon as it is typed or picked.
+                        guard let first = now.trimmingCharacters(in: .whitespaces).first else { return }
+                        if String(first) != space.emoji { browser.setSpaceEmoji(space.id, to: String(first)) }
+                        if now.count > 1 { emoji = String(first) }
+                    }
+                Button {
+                    NSApp.orderFrontCharacterPalette(nil)
+                } label: {
+                    Image(systemName: "face.smiling")
+                }
+                .buttonStyle(.borderless)
+                .help("Emoji & Symbols")
+            }
+
+            LazyVGrid(columns: iconColumns, spacing: 4) {
+                cell(on: !space.hasIcon, help: "None — a dot") {
+                    browser.setSpaceEmoji(space.id, to: "")
+                    emoji = ""
+                } label: {
+                    Circle().fill(Palette.ink.opacity(0.6)).frame(width: 6, height: 6)
+                }
+                ForEach(Array(zip(Spaces.icons, Spaces.iconNames)), id: \.0) { symbol, name in
+                    cell(on: space.icon == symbol, help: name) {
+                        browser.setSpaceIcon(space.id, to: symbol)
+                        emoji = ""
+                    } label: {
+                        Image(systemName: symbol).font(.system(size: 11.5))
+                    }
+                }
+            }
+        }
+        .padding(14)
+        .frame(width: 236)
+        .onAppear { emoji = space.emoji ?? "" }
+    }
+
+    private func cell<Label: View>(on: Bool, help: String, act: @escaping () -> Void, @ViewBuilder label: () -> Label) -> some View {
+        label()
+            .foregroundStyle(on ? Palette.ink : Palette.muted)
+            .frame(width: 26, height: 26)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(on ? Palette.wash : .clear)
+            )
+            .contentShape(Rectangle())
+            .onTapGesture(perform: act)
+            .help(help)
+    }
+}
+
+/// The door at the foot's left: everything that is a panel of its own, and
+/// the downloads — a ring round it while one is coming, and the shelf of
+/// them opening from it when one starts.
+private struct Library: View {
+    @ObservedObject var browser: Browser
+    @ObservedObject var loot: Loot
+    @State private var shelf = false
+
+    var body: some View {
+        Door(icon: "books.vertical", on: shelf, help: "Library — downloads, history, bookmarks, passwords") {
+            PopMenu.show([
+                ("Downloads", "arrow.down.circle", { shelf = true }),
+                ("History", "clock", { browser.recalling = true }),
+                ("Bookmarks", "bookmark", { browser.bookmarking = true }),
+                ("Passwords", "key", { browser.managing = true }),
+                nil,
+                ("Extensions…", "puzzlepiece.extension", {
+                    Store.settings.set("extensions", forKey: "settings.page")
+                    browser.tuning = true
+                }),
+                ("Settings…", "gearshape", { browser.tuning = true }),
+            ])
+        }
+        .overlay {
+            if let haul = loot.hauls.first {
+                HaulRing(haul: haul)
+                    .frame(width: 24, height: 24)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
+        }
+        .animation(Motion.quick, value: loot.hauls.isEmpty)
+        .popover(isPresented: $shelf, arrowEdge: .top) {
+            DownloadsShelf(browser: browser, loot: loot) { shelf = false }.popGround()
+        }
+        // A download arriving says so where it will be found.
+        .onChange(of: loot.hauls.count) { old, now in
+            if now > old { shelf = true }
+        }
+    }
+}
+
+/// How far the newest download has come, drawn round the library's door.
+private struct HaulRing: View {
+    @ObservedObject var haul: Haul
+    var body: some View {
+        ZStack {
+            Circle().stroke(Palette.ink.opacity(0.15), lineWidth: 1.5)
+            Circle()
+                .trim(from: 0, to: max(0.03, haul.fraction))
+                .stroke(Palette.ink, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.2), value: haul.fraction)
+        }
+    }
+}
+
+/// A menu popped up under the pointer. Nil in the list is a separator.
+@MainActor
+enum PopMenu {
+    private final class Action: NSObject {
+        let run: () -> Void
+        init(_ run: @escaping () -> Void) { self.run = run }
+        @objc func fire() { run() }
+    }
+
+    private static var actions: [Action] = []
+
+    static func show(_ items: [(String, String, () -> Void)?]) {
+        actions = []
+        let menu = NSMenu()
+        for entry in items {
+            guard let (title, symbol, run) = entry else {
+                menu.addItem(.separator())
+                continue
+            }
+            let action = Action(run)
+            actions.append(action)
+            let item = NSMenuItem(title: title, action: #selector(Action.fire), keyEquivalent: "")
+            item.target = action
+            item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+            menu.addItem(item)
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+}
+
+/// The downloads' shelf: what is still coming, then the last few kept.
+private struct DownloadsShelf: View {
+    @ObservedObject var browser: Browser
+    @ObservedObject var loot: Loot
+    let close: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if loot.hauls.isEmpty && loot.kept.isEmpty {
+                Text("Nothing downloaded yet")
+                    .font(.system(size: 12.5))
+                    .foregroundStyle(Palette.muted)
+                    .padding(12)
+            }
+            ForEach(loot.hauls) { haul in
+                Coming(haul: haul)
+            }
+            ForEach(loot.kept.prefix(6)) { keep in
+                Kept(keep: keep, loot: loot)
+            }
+            Divider().padding(.vertical, 4)
+            Button {
+                close()
+                browser.hoarding = true
+            } label: {
+                Text("Show All Downloads")
+                    .font(.system(size: 12.5))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(6)
+        .frame(width: 280)
+    }
+
+    private struct Coming: View {
+        @ObservedObject var haul: Haul
+        var body: some View {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Palette.muted)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(haul.name)
+                        .font(.system(size: 12.5))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    ProgressView(value: haul.fraction)
+                        .progressViewStyle(.linear)
+                        .controlSize(.small)
+                }
+                Button { haul.cancel() } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(Palette.muted)
+                }
+                .buttonStyle(.plain)
+                .help("Stop")
+            }
+            .padding(8)
+        }
+    }
+
+    private struct Kept: View {
+        let keep: Keep
+        let loot: Loot
+        @State private var hovering = false
+        var body: some View {
+            HStack(spacing: 10) {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: keep.path))
+                    .resizable()
+                    .frame(width: 22, height: 22)
+                    .opacity(keep.stillThere ? 1 : 0.4)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(keep.name)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(keep.stillThere ? Palette.ink : Palette.muted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text(keep.from.isEmpty ? When.said(keep.date) : "\(keep.from) · \(When.said(keep.date))")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Palette.muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if hovering, keep.stillThere {
+                    Button { loot.reveal(keep) } label: {
+                        Image(systemName: "magnifyingglass").font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Palette.muted)
+                    .help("Show in Finder")
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 38)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(hovering ? Palette.wash : .clear))
+            .contentShape(Rectangle())
+            .onTapGesture { if keep.stillThere { loot.open(keep) } }
+            .onHover { hovering = $0 }
+        }
+    }
+}
+
+/// A folder in the column, as Arc draws one: the outline in the theme's
+/// colour with a pale wash of the same inside.
+private struct FolderIcon: View {
+    let open: Bool
+    let tint: Int
+    @Environment(\.colorScheme) private var scheme
+
+    private var blue: Color { Spaces.accent(tint, dark: scheme == .dark) }
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "folder.fill")
+                .foregroundStyle(blue.opacity(open ? 0.32 : 0.2))
+            Image(systemName: "folder")
+                .foregroundStyle(blue)
+        }
+        .font(.system(size: 12.5, weight: .medium))
+        .frame(width: 15, height: 15)
+    }
+}
+
+/// The fine grain Arc lays over its colour, so a flat fill reads as a
+/// surface. One small tile of noise, made once and repeated.
+struct Grain: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Image(nsImage: Grain.tile)
+            .resizable(resizingMode: .tile)
+            .opacity(scheme == .dark ? 0.05 : 0.07)
+            .blendMode(scheme == .dark ? .plusLighter : .multiply)
+            .allowsHitTesting(false)
+    }
+
+    private static let tile: NSImage = {
+        let side = 128
+        var bytes = [UInt8](repeating: 0, count: side * side * 4)
+        var seed: UInt64 = 0x9E3779B97F4A7C15
+        for i in 0..<(side * side) {
+            // xorshift: the same grain every launch, and no cost to make.
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17
+            let v = UInt8(truncatingIfNeeded: seed >> 56)
+            bytes[i * 4] = v; bytes[i * 4 + 1] = v; bytes[i * 4 + 2] = v; bytes[i * 4 + 3] = 255
+        }
+        let rgb = CGColorSpaceCreateDeviceRGB()
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData),
+              let image = CGImage(width: side, height: side, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: side * 4,
+                                  space: rgb, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+                                  provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        else { return NSImage() }
+        // Two pixels to the point: a grain, not a gravel.
+        return NSImage(cgImage: image, size: NSSize(width: side / 2, height: side / 2))
+    }()
 }
 
 /// A row that is an action rather than a page. Quiet until the pointer is on it.
@@ -1182,24 +1869,25 @@ struct Quiet: View {
     let act: () -> Void
 
     @State private var hovering = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Button(action: act) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .frame(width: 15)
                 Text(title)
                     .font(.system(size: 12.5))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(hovering ? Palette.ink.opacity(0.7) : Palette.faint)
+            .foregroundStyle(hovering ? Palette.ink.opacity(0.8) : Palette.quiet)
             .padding(.leading, 10)
             .frame(height: height)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(hovering ? Palette.hover : .clear)
+                    .fill(hovering ? SideTone.chip(scheme, strong: false) : .clear)
             )
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
@@ -1222,7 +1910,7 @@ struct Speaker: View {
         Button(action: tab.toggleMute) {
             Image(systemName: tab.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 8))
-                .foregroundStyle(Palette.muted)
+                .foregroundStyle(Palette.quiet)
                 .frame(width: 15, height: 15)
                 .background(Palette.ink.opacity(hovering ? 0.07 : 0), in: Circle())
                 .contentShape(Circle())
@@ -1247,11 +1935,11 @@ struct Door: View {
         Button(action: act) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(on ? Palette.ink : (hovering ? Palette.ink.opacity(0.7) : Palette.muted))
+                .foregroundStyle(on ? Palette.ink : (hovering ? Palette.ink.opacity(0.7) : Palette.quiet))
                 .frame(width: 26, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(on ? Palette.wash : (hovering ? Palette.hover : .clear))
+                        .fill(on ? Palette.veilStrong : (hovering ? Palette.veil : .clear))
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }

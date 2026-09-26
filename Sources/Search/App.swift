@@ -279,7 +279,17 @@ struct ContentView: View {
         ZStack(alignment: .topLeading) {
             // Black while a page has the screen, so the frame of our own window
             // that survives the transition is not a white band across the top.
-            (browser.active?.immersed == true ? Color.black : Palette.ground)
+            // With the column, that frame is the space's own colour, and the
+            // page sits inside it.
+            if browser.active?.immersed == true {
+                Color.black
+            } else if framed {
+                Spaces.ground(browser.space)
+                    .environment(\.colorScheme, groundScheme)
+                Grain().environment(\.colorScheme, groundScheme)
+            } else {
+                Palette.ground
+            }
 
             // One stage, always. It starts beside the column and under the
             // strip, not behind them — a page sliding beneath floating chrome
@@ -290,6 +300,31 @@ struct ContentView: View {
             // again thirty times a second, the page juddered along its right
             // edge and overshot the window with the spring (see `room`).
             stage
+                // Beside the column the page is a card on the space's colour,
+                // its corners rounded as Arc's are. The web view is AppKit and
+                // is rounded by its own layer (see StageView); this clips what
+                // SwiftUI draws over it, and lays a soft edge beneath.
+                .clipShape(RoundedRectangle(cornerRadius: pageCorner, style: .continuous))
+                .overlay {
+                    if framed {
+                        RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
+                            .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.5)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .background {
+                    if framed {
+                        RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
+                            .fill(Palette.ground)
+                            .shadow(color: .black.opacity(0.10), radius: 3, y: 1)
+                    }
+                }
+                .padding(.top, gutterTop)
+                .padding(.bottom, gutter)
+                // The column's own margin is the air on its side; folded
+                // away, the page keeps the thin frame there too.
+                .padding(.leading, sideRight || !sidebar ? gutter : 0)
+                .padding(.trailing, sideRight && sidebar ? 0 : gutter)
                 .padding(.leading, sideRight ? 0 : roomed.width)
                 .padding(.trailing, sideRight ? roomed.width : 0)
                 .padding(.top, roomed.height)
@@ -323,7 +358,8 @@ struct ContentView: View {
 
             // The address, across the top of the page. While it hides itself,
             // Fold draws it over the page instead of reserving this band.
-            if urlShown, !browser.prefs.barHides {
+            // Beside the column it lives in the column, above the pins.
+            if urlShown, !browser.prefs.barHides, !browser.prefs.sidebar {
                 URLBar(browser: browser, showsLights: reserveLights, showsChrome: browser.prefs.sidebar)
                     .padding(.leading, sideRight ? 0 : chrome.width)
                     .padding(.trailing, sideRight ? chrome.width : 0)
@@ -333,6 +369,9 @@ struct ContentView: View {
         }
         .ignoresSafeArea()
         .animation(Motion.glide, value: browser.prefs.sidebar)
+        .onChange(of: browser.prefs.sidebar) { _, _ in paintChrome(window) }
+        .onChange(of: browser.space) { _, _ in paintChrome(window) }
+        .onChange(of: browser.spaceID) { _, _ in paintChrome(window) }
         .animation(Motion.glide, value: browser.prefs.sideRight)
         .animation(Motion.glide, value: browser.prefs.barHides)
         .animation(Motion.glide, value: browser.barPeeking)
@@ -345,7 +384,7 @@ struct ContentView: View {
     @ViewBuilder
     private var stage: some View {
         if let tab = browser.active {
-                Page(tab: tab)
+                Page(tab: tab, corner: pageCorner)
                 // A blank tab keeps the field in the middle, as well as the
                 // prompt in the bar. That field owns the suggestions, so the
                 // list under the bar stays away and the two don't both take
@@ -366,7 +405,7 @@ struct ContentView: View {
                                 .contentShape(Rectangle())
                                 .onTapGesture { browser.dismiss() }
                         }
-                        if browser.fieldShowing, !browser.offers.isEmpty, !tab.isBlank {
+                        if browser.fieldShowing, !browser.offers.isEmpty, !tab.isBlank, !browser.prefs.sidebar {
                             OfferList(browser: browser)
                                 .padding(.horizontal, 12)
                                 .padding(.top, (barShown ? BookmarksBar.height : 0) + (browser.prefs.barHides ? URLBar.height : 0) + 6)
@@ -722,8 +761,32 @@ struct ContentView: View {
     private var urlShown: Bool { browser.active?.immersed != true }
 
     private var urlBand: CGFloat {
-        guard urlShown, !browser.prefs.barHides else { return 0 }
+        guard urlShown, !browser.prefs.barHides, !browser.prefs.sidebar else { return 0 }
         return URLBar.height
+    }
+
+    /// The column's layout: the page is inset in the space's colour, a thin
+    /// strip on every side the column isn't already filling.
+    private var framed: Bool {
+        browser.prefs.sidebar && browser.active?.immersed != true
+    }
+
+    private var gutter: CGFloat { framed ? 8 : 0 }
+
+    private var pageCorner: CGFloat { framed ? 10 : 0 }
+
+    @Environment(\.colorScheme) private var windowScheme
+
+    /// The frame round the page wears the space's own tone, as the column does.
+    private var groundScheme: ColorScheme {
+        browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light
+    }
+
+    /// Lights sit in the page's top corner only when the column is on the
+    /// right and so can't hold them. The strip above the page is their row.
+    private var gutterTop: CGFloat {
+        guard framed else { return 0 }
+        return browser.prefs.sideRight ? URLBar.height : 8
     }
 
     /// The column is on the right. The page then gives up its trailing edge.
@@ -755,13 +818,17 @@ struct ContentView: View {
         view.isHidden = NSApp.isActive
     }
 
+    private func paintChrome(_ window: NSWindow?) {
+        window?.backgroundColor = browser.prefs.sidebar ? Spaces.nsGround(browser.space) : Palette.NS.ground
+    }
+
     private func dress(_ window: NSWindow) {
         Links.window = window
         // Light or dark is the app's to say (Settings › Appearance); the
         // window only has to be the ground colour that goes with it.
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.backgroundColor = Palette.NS.ground
+        paintChrome(window)
         // The strip does the dragging, so the page underneath can't be grabbed
         // by accident while selecting text.
         window.isMovableByWindowBackground = false

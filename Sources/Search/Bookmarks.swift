@@ -271,6 +271,46 @@ final class Bookmarks: ObservableObject {
         save()
     }
 
+    /// Two pages dropped one on the other become a folder, where the one
+    /// underneath was sitting. A folder dropped on a page is not this: that
+    /// one just moves.
+    @discardableResult
+    func combine(_ dragged: Bookmark.ID, onto target: Bookmark.ID) -> Bookmark.ID? {
+        guard dragged != target else { return nil }
+        guard let coming = node(dragged), !coming.isFolder,
+              let kept = node(target), !kept.isFolder else { return nil }
+        let parent = place(of: target).parent
+        var working = roots
+        guard Bookmarks.detach(dragged, from: &working) != nil,
+              let index = Bookmarks.index(of: target, parent: parent, in: working),
+              Bookmarks.detach(target, from: &working) != nil
+        else { return nil }
+        let folder = Bookmark.folder("Folder", [kept, coming])
+        guard Bookmarks.insert(folder, into: parent, at: index, nodes: &working) else { return nil }
+        roots = working
+        save()
+        reveal = folder.id
+        return folder.id
+    }
+
+    func node(_ id: Bookmark.ID) -> Bookmark? {
+        func walk(_ nodes: [Bookmark]) -> Bookmark? {
+            for node in nodes {
+                if node.id == id { return node }
+                if let kids = node.children, let found = walk(kids) { return found }
+            }
+            return nil
+        }
+        return walk(roots)
+    }
+
+    /// The folder a bookmark sits in. Nil is the top of the list; a missing
+    /// id is nil as well.
+    func parent(of id: Bookmark.ID) -> Bookmark.ID? {
+        let found = place(of: id)
+        return found.found ? found.parent : nil
+    }
+
     private static func detach(_ id: Bookmark.ID, from nodes: inout [Bookmark]) -> Bookmark? {
         for i in nodes.indices {
             if nodes[i].id == id { return nodes.remove(at: i) }
@@ -299,6 +339,40 @@ final class Bookmarks: ObservableObject {
             }
         }
         return false
+    }
+
+    /// Puts `node` at `index` among a folder's children, or at the top of the
+    /// list when `parent` is nil.
+    @discardableResult
+    private static func insert(_ node: Bookmark, into parent: Bookmark.ID?, at index: Int, nodes: inout [Bookmark]) -> Bool {
+        if parent == nil {
+            nodes.insert(node, at: min(max(0, index), nodes.count))
+            return true
+        }
+        for i in nodes.indices {
+            if nodes[i].id == parent, nodes[i].isFolder {
+                var kids = nodes[i].children ?? []
+                kids.insert(node, at: min(max(0, index), kids.count))
+                nodes[i].children = kids
+                return true
+            }
+            guard nodes[i].children != nil else { continue }
+            var kids = nodes[i].children!
+            if insert(node, into: parent, at: index, nodes: &kids) {
+                nodes[i].children = kids
+                return true
+            }
+        }
+        return false
+    }
+
+    private static func index(of id: Bookmark.ID, parent: Bookmark.ID?, in nodes: [Bookmark]) -> Int? {
+        if parent == nil { return nodes.firstIndex { $0.id == id } }
+        for node in nodes {
+            if node.id == parent { return node.children?.firstIndex { $0.id == id } }
+            if let kids = node.children, let found = index(of: id, parent: parent, in: kids) { return found }
+        }
+        return nil
     }
 
     /// Inserts `node` immediately before `sibling`. Fails when the sibling
