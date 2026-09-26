@@ -30,6 +30,8 @@ struct Space: Codable, Identifiable, Equatable {
     var sharesSignIns: Bool?
     /// Where this space's downloads go; nil for the folder in Settings.
     var downloads: String?
+    /// Light, dark, or whichever the window is (Fork/SpaceThemes.swift).
+    var tone: Tone?
 
     /// The first space: the session and the store there were before spaces.
     static let firstID = UUID(uuidString: "00000000-0000-0000-0000-000000000001") ?? UUID()
@@ -58,12 +60,14 @@ enum Spaces {
         "sparkles", "brain.head.profile", "lightbulb", "gamecontroller", "beach.umbrella", "cup.and.saucer",
         "music.note", "film", "paintpalette", "camera", "house", "book",
         "graduationcap", "cart", "airplane", "dumbbell", "leaf", "heart",
+        "face.smiling", "person",
     ]
     static let iconNames = [
         "Work", "Office", "Desktop", "Laptop", "Code", "Terminal",
         "AI", "Thinking", "Ideas", "Games", "Leisure", "Café",
         "Music", "Film", "Art", "Photos", "Home", "Reading",
-        "Studies", "Shopping", "Travel", "Sport", "Nature", "Personal",
+        "Studies", "Shopping", "Travel", "Sport", "Nature", "Love",
+        "Personal", "Me",
     ]
 
     private static var file: URL { Store.file("spaces.json") }
@@ -301,15 +305,14 @@ struct SpaceDot: View {
 
     static let width: CGFloat = 26
 
-    private var symbol: String { browser.makingSpace ? "plus" : browser.space.symbol }
-    private var key: String { browser.makingSpace ? "new" : "\(browser.spaceID.uuidString)-\(browser.space.symbol)" }
+    private var symbol: String { browser.makingSpace ? "plus" : (browser.space.emoji ?? browser.space.symbol) }
+    private var key: String { browser.makingSpace ? "new" : "\(browser.spaceID.uuidString)-\(symbol)" }
 
     var body: some View {
         Button { SpaceMenu.show(for: browser) } label: {
             ZStack {
-                Image(systemName: shown?.symbol ?? symbol)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(hovering ? Palette.ink : Palette.muted)
+                SpaceGlyph.drawn(shown?.symbol ?? symbol, size: 12)
+                    .foregroundStyle(hovering ? Palette.ink : Palette.quiet)
                     .id(shown?.key ?? key)
                     // The way the tabs go: sideways in the column; in the bar
                     // across the top, up for the next space, down going back.
@@ -321,7 +324,7 @@ struct SpaceDot: View {
             .clipped()
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(hovering ? Palette.hover : .clear)
+                    .fill(hovering ? Palette.veil : .clear)
             )
             .contentShape(Rectangle())
         }
@@ -367,7 +370,7 @@ enum SpaceMenu {
             let entry = item(space.name, key: index < 9 ? "\(index + 1)" : "", checked: space.id == browser.spaceID) {
                 browser.switchSpace(to: space.id)
             }
-            entry.image = NSImage(systemSymbolName: space.symbol, accessibilityDescription: nil)
+            entry.image = Spaces.image(for: space)
             menu.addItem(entry)
         }
         menu.addItem(.separator())
@@ -382,6 +385,11 @@ enum SpaceMenu {
             let choice = item(name, checked: here.symbol == symbol) { browser.setSpaceIcon(here.id, to: symbol) }
             choice.image = NSImage(systemSymbolName: symbol, accessibilityDescription: name)
             icons.addItem(choice)
+        }
+        icons.addItem(.separator())
+        icons.addItem(item("Emoji…") { SpaceGlyph.askEmoji(for: here, browser: browser) })
+        if here.hasIcon {
+            icons.addItem(item("No Icon") { browser.setSpaceEmoji(here.id, to: "") })
         }
         let icon = NSMenuItem(title: "Icon", action: nil, keyEquivalent: "")
         icon.submenu = icons
