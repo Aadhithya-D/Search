@@ -136,7 +136,7 @@ enum Metrics {
     static let fieldWidth: CGFloat = 560
     /// The column of titles down the left, in the way that has one.
     static let side: CGFloat = 232
-    static let sideMin: CGFloat = 176
+    static let sideMin: CGFloat = 200
     static let sideMax: CGFloat = 440
 }
 

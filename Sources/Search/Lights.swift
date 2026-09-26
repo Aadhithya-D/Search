@@ -16,8 +16,22 @@ import AppKit
 final class Lights: NSObject {
     /// Where the close button's centre goes, from the window's top-left: where
     /// a unified toolbar put it, which Metrics.lights and sideLights are
-    /// measured from.
-    static let centre = CGPoint(x: 26, y: 26)
+    /// measured from. The row is the tab strip in one layout and the
+    /// column's first row in the other, so the height — and the buttons'
+    /// centre in it — follows whichever is across the top.
+    static let centreX: CGFloat = 26
+    static var band: CGFloat = Metrics.strip
+    static var centreY: CGFloat = 26
+
+    /// The title bar grows or shrinks to the row across the top, and the
+    /// buttons are put back in the middle of it.
+    static func retarget(band: CGFloat) {
+        let y = band / 2
+        guard band != Self.band || y != centreY else { return }
+        Self.band = band
+        centreY = y
+        kept.values.forEach { $0.place() }
+    }
 
     private static var kept: [ObjectIdentifier: Lights] = [:]
 
@@ -79,20 +93,29 @@ final class Lights: NSObject {
         placing = true
         defer { placing = false }
 
-        // A title bar as tall as the strip, so the buttons can sit lower in it.
-        let height = Metrics.strip
+        // A title bar as tall as the row across the top, so the buttons sit
+        // in the middle of it.
+        let height = Lights.band
         var frame = container.frame
         if frame.height != height || frame.maxY != window.frame.height {
             frame.size.height = height
             frame.origin.y = window.frame.height - height
             container.frame = frame
         }
+        // The buttons' own row has to be that tall too, or a centre measured
+        // in the row sits outside a shorter system title bar.
+        if abs(bar.frame.height - height) > 0.5 {
+            var inner = bar.frame
+            inner.size.height = height
+            inner.origin.y = container.isFlipped ? 0 : max(0, container.bounds.height - height)
+            bar.frame = inner
+        }
         // Only the row moves; the spacing is AppKit's, from its first layout.
         for (index, button) in buttons.enumerated() {
             let size = button.frame.size
             let origin = NSPoint(
-                x: Lights.centre.x - size.width / 2 + CGFloat(index) * spacing,
-                y: bar.bounds.height - Lights.centre.y - size.height / 2
+                x: Lights.centreX - size.width / 2 + CGFloat(index) * spacing,
+                y: bar.bounds.height - Lights.centreY - size.height / 2
             )
             if button.frame.origin != origin { button.setFrameOrigin(origin) }
         }

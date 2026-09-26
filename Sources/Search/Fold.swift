@@ -248,7 +248,7 @@ struct Fold: View {
     private func hideLights() {
         guard let bar = Fold.titlebar else { return }
         if prefs.sidebar {
-            Fold.slide(bar, off: lightsOff, by: prefs.sideWidth)
+            Fold.slide(bar, off: lightsOff, by: SideBar.topRow, up: true)
         } else {
             Fold.slide(bar, off: lightsOff, by: Metrics.strip, up: true)
         }

@@ -431,7 +431,7 @@ final class Extensions: NSObject, ObservableObject {
         noteError("restarted the extension: \(reason)", for: id)
         // Its popup goes with it; it is opened again once the extension is back.
         let popup = ExtensionPopup.shared.extensionID == id ? ExtensionPopup.shared.view?.url : nil
-        let anchor = anchors[id]?.view?.window != nil ? anchors[id]?.view : anchors[Extensions.menuAnchor]?.view
+        let anchor = anchors[id]?.view?.window != nil ? anchors[id]?.view : fallbackAnchor
         unload(id)
         Task {
             guard await load(item), let popup, let context = contexts[id] else { return }
@@ -854,7 +854,7 @@ final class Extensions: NSObject, ObservableObject {
         // Search's lost the new popup's first messages to its worker.
         if context.action(for: activeAdapter)?.presentsPopup == true, let url = popupURL(for: context) {
             let own = anchors[id]?.view
-            ExtensionPopup.shared.show(url, for: context, from: own?.window != nil ? own : anchors[Extensions.menuAnchor]?.view)
+            ExtensionPopup.shared.show(url, for: context, from: own?.window != nil ? own : fallbackAnchor)
             return
         }
         context.performAction(for: activeAdapter)
@@ -953,7 +953,7 @@ extension Extensions: WKWebExtensionControllerDelegate {
         action.closePopup()
         guard let url else { return }
         let own = anchors[context.uniqueIdentifier]?.view
-        let anchor = own?.window != nil ? own : anchors[Extensions.menuAnchor]?.view
+        let anchor = own?.window != nil ? own : fallbackAnchor
         ExtensionPopup.shared.show(url, for: context, from: anchor)
     }
 
@@ -1188,7 +1188,7 @@ private struct ExtensionButtons: View {
 
 /// An extension's icon with its badge in the corner.
 @available(macOS 15.4, *)
-private struct ExtensionIcon: View {
+struct ExtensionIcon: View {
     let button: Extensions.Button
     let size: CGFloat
 
@@ -1225,7 +1225,7 @@ private struct ExtensionIcon: View {
 
 /// What a right-click on an extension offers, in the row and in the list.
 @available(macOS 15.4, *)
-private struct ExtensionActions: View {
+struct ExtensionActions: View {
     let id: String
     let name: String
     let extensions: Extensions

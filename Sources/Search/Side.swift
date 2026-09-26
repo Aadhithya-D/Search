@@ -32,7 +32,7 @@ struct SideBar: View {
     private static let row: CGFloat = 28
     private static let gap: CGFloat = 2
     private static let square: CGFloat = 34
-    private static let pinGap: CGFloat = 4
+    private static let pinGap: CGFloat = 6
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -41,30 +41,40 @@ struct SideBar: View {
             DragStrip(reserved: 0, below: browser.makingSpace ? .greatestFiniteMagnitude : rowsEnd)
 
             // The band the lights sit in is this mode's title bar: the window
-            // is dragged by it and a double-click fills the screen with it,
-            // everywhere but over the three doors, which take their own
-            // clicks. The lights are the title bar's own and answer first.
+            // is dragged by it and a double-click fills the screen with it.
+            // The lights and the doors at the other end are views of their
+            // own and answer first.
             HStack(spacing: 0) {
                 DragStrip()
                     .frame(width: 10 + Metrics.sideLights)
-                Color.clear
-                    .frame(width: Metrics.helm)
-                    .allowsHitTesting(false)
                 DragStrip()
             }
-            .frame(height: Metrics.strip)
+            .frame(height: SideBar.topRow)
 
             VStack(alignment: .leading, spacing: 0) {
-                // The traffic lights' corner, with back, forward and reload
-                // sitting right of them — the same three doors as the top
-                // bar, moved beside the lights since there's no far end of a
-                // row to put them at in this mode.
-                HStack(spacing: 0) {
+                // Fork: the traffic lights' corner, with back, forward and
+                // reload at the end of the same line, and the address as the
+                // row under them (Fork/SideAddress.swift).
+                HStack(spacing: 2) {
                     Color.clear.frame(width: Metrics.sideLights)
-                    Helm(browser: browser)
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
+                    // Never wider than the column: a narrow one keeps the
+                    // three doors and lets the extensions' button go — the
+                    // same list is in the site's controls, under the address
+                    // — rather than pushing the column out past its edges.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 2) {
+                            ExtensionSlot(edge: .bottom)
+                            Helm(browser: browser)
+                        }
+                        Helm(browser: browser)
+                    }
                 }
-                .frame(height: Metrics.strip)
+                .frame(width: prefs.sideWidth - 20, height: SideBar.topRow)
+
+                SideAddress(browser: browser)
+                    .padding(.bottom, SideAddress.below)
+                    .zIndex(2)
 
                 // The spaces side by side, as pages: two fingers sideways move
                 // the one on screen and the next one together, the next one
@@ -267,7 +277,7 @@ struct SideBar: View {
         let pinBlock = pinRows == 0 ? 0
             : CGFloat(pinRows) * pinHeight + CGFloat(pinRows - 1) * SideBar.pinGap + 10
         let loose = CGFloat(browser.tabs.count - pins) * (SideBar.row + SideBar.gap)
-        return Metrics.strip + pinBlock + loose + SideBar.row + 8
+        return SideBar.topRow + SideAddress.block + pinBlock + loose + SideBar.row + 8
     }
 
     // MARK: - the pinned squares
@@ -445,7 +455,6 @@ struct SideBar: View {
     private var foot: some View {
         HStack(spacing: 2) {
             if browser.prefs.usesSpaces { SpaceDot(browser: browser) }
-            ExtensionSlot(edge: .trailing)
             Door(icon: "bookmark", help: "Bookmarks") { browser.bookmarksOpen.toggle() }
                 .popover(isPresented: $browser.bookmarksOpen, arrowEdge: .trailing) {
                     BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks).popGround()
@@ -670,7 +679,7 @@ private struct SideRow: View {
         .modifier(Shake(travel: shake))
         .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .modifier(OneClick(double: false) {
-            if live { browser.beginTabEdit(tab) } else { browser.select(tab) }
+            browser.select(tab)
         })
         .overlay { MiddleClick(act: close) }
         .onHover { hovering = $0 }
