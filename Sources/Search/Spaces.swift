@@ -199,7 +199,11 @@ extension Browser {
         tabGroups = readRow(id).groups ?? []
         // The space new pages are made in, when this is the window in front;
         // and the one to come back to, when this is the oldest window.
-        if Browsers.front === self || Browsers.front == nil { Spaces.current = id }
+        if Browsers.front === self || Browsers.front == nil {
+            Spaces.current = id
+            // Fork: the space's own bookmarks (Fork/BookmarksPerSpace.swift).
+            bookmarks.use(id)
+        }
         if usesFiles { Store.settings.set(id.uuidString, forKey: "space.current") }
         if let back = parked.removeValue(forKey: id), !back.tabs.isEmpty {
             showRow(back.tabs, active: back.active)
@@ -310,6 +314,8 @@ extension Browser {
         // itself if one was showing it (the list's change moves it).
         for other in Browsers.all where other !== self { other.forget(space: id) }
         Pins.forget(id)
+        // Fork: its bookmarks go with it (Fork/BookmarksPerSpace.swift).
+        bookmarks.forget(id)
         // A space signed in with the others has nothing of its own to erase:
         // its cookies are theirs.
         if !shared { Spaces.erase(id) }
@@ -482,7 +488,7 @@ enum SpaceMenu {
         if !here.isFirst {
             menu.addItem(.separator())
             menu.addItem(item("Delete “\(here.name)”…") {
-                Ask.sure("Delete “\(here.name)”?", detail: "Its tabs close, and its cookies and sign-ins are erased from this Mac. History and bookmarks stay.", confirm: "Delete") {
+                Ask.sure("Delete “\(here.name)”?", detail: "Its tabs close, and its bookmarks, cookies and sign-ins are erased from this Mac. History stays.", confirm: "Delete") {
                     browser.deleteSpace(here.id)
                 }
             })
