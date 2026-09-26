@@ -1165,7 +1165,11 @@ final class Browser: NSObject, ObservableObject {
         remember(tab, at: index)
         tab.close()
         tabs.remove(at: index)
-        if activeID == tab.id {
+        // Fork: the last open page closed — a new tab, not a pin or a
+        // bookmark's page (Fork/LastTabClosed.swift).
+        if activeID == tab.id, closesLastPage(tab) {
+            newTab()
+        } else if activeID == tab.id {
             // The neighbour on the right, or the last one if there is no
             // right — through select(), same as everywhere else you land on
             // a tab, so one that was never built yet actually wakes up
