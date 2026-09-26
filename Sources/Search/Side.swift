@@ -13,6 +13,9 @@ struct SideBar: View {
     /// On the window's ground, beside the page's card (see CardEdge): the
     /// ground's colour and no edge of its own, the card's edge being the line.
     var onFrame = false
+    /// Out over the page from the window's edge, as a card of its own
+    /// rather than the column beside the page (Fork/FoldedColumn.swift).
+    var floating = false
 
     @Environment(\.colorScheme) private var windowScheme
     @Namespace private var pill
@@ -131,7 +134,7 @@ struct SideBar: View {
                 }
             }
         }
-        .overlay(alignment: innerEdge) { edge }
+        .overlay(alignment: innerEdge) { if !floating { edge } }
         // A pastel worn on a dark window takes dark ink, and the other way
         // round: the column is drawn in its colour's own light or dark.
         .environment(\.colorScheme, browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light)
