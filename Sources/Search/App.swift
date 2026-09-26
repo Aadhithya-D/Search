@@ -423,7 +423,7 @@ struct ContentView: View {
             // height, so the traffic lights sit in its own corner rather than
             // over the page.
             if sidebar {
-                SideBar(browser: browser, prefs: browser.prefs, onFrame: cards)
+                SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks, onFrame: cards)
                     .frame(maxHeight: .infinity, alignment: .top)
                     .transition(.move(edge: sideOnRight ? .trailing : .leading))
             }
@@ -536,7 +536,7 @@ struct ContentView: View {
     /// aren't folded away or under a video filling the screen.
     private var barShown: Bool {
         browser.prefs.bookmarksBar && !browser.bookmarks.isEmpty && !browser.folded
-            && fullscreenTab == nil
+            && fullscreenTab == nil && !sidebar  // Fork: the column has its own (Fork/SideMarks.swift)
     }
 
     /// The room the page is laid out to leave them, which is not animated.

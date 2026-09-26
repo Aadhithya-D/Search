@@ -125,7 +125,7 @@ struct Fold: View {
                     // The column's own ground is opaque, so it is the same
                     // rectangle either way. It wears the window's ground, as
                     // it does beside the page's card (see CardEdge).
-                    SideBar(browser: browser, prefs: prefs, onFrame: true)
+                    SideBar(browser: browser, prefs: prefs, bookmarks: browser.bookmarks, onFrame: true)
                         .transition(.casting(FoldShadow(x: onRight ? -4 : 4, behind: true))
                             .combined(with: .move(edge: onRight ? .trailing : .leading)))
                 }
