@@ -961,9 +961,9 @@ struct BookmarkDoor: View {
         }
         .popover(isPresented: $browser.bookmarksOpen, arrowEdge: arrowEdge) {
             if let id = browser.bookmarkCard {
-                BookmarkCard(browser: browser, bookmarks: browser.bookmarks, id: id)
+                BookmarkCard(browser: browser, bookmarks: browser.bookmarks, id: id).popGround()
             } else {
-                BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks)
+                BookmarksDropdown(browser: browser, bookmarks: browser.bookmarks).popGround()
             }
         }
     }
