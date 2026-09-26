@@ -449,6 +449,7 @@ struct BookmarksDropdown: View {
                 Foot("folder.badge.plus", "New Folder") {
                     Ask.name("New Folder", placeholder: "Name", confirm: "Create") { bookmarks.makeFolder($0) }
                 }
+                Foot(nil, "Import HTML…") { browser.importBookmarksHTML() }
                 Foot(nil, "Manage Bookmarks…") { browser.bookmarking = true }
             }
             .padding(6)
@@ -524,6 +525,7 @@ struct BookmarksPanel: View {
                 ForEach(Chromium.installed()) { source in
                     Pill(source.name) { browser.takeBookmarks(from: source) }
                 }
+                Pill("HTML file…") { browser.importBookmarksHTML() }
                 Spacer()
                 Text(bookmarks.count == 1 ? "1 bookmark" : "\(bookmarks.count) bookmarks")
                     .font(.system(size: 12))
