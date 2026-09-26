@@ -49,13 +49,8 @@ final class Browser: NSObject, ObservableObject {
 
     /// ⇧⌘B. The page you are on, at the end of the list.
     func bookmarkCurrent() {
-        guard let tab = active, let url = tab.address else { return }
-        guard !bookmarks.contains(url) else {
-            announce("Already a bookmark")
-            return
-        }
-        bookmarks.add(url, title: tab.title)
-        announce("Bookmarked")
+        guard let tab = active else { return }
+        file(tab, into: nil)
     }
 
     /// Another browser's bookmarks, folders and all — and, behind them, the

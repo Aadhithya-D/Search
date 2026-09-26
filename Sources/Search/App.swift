@@ -147,6 +147,9 @@ struct SearchApp: App {
                 Button("Add This Page") { browser.bookmarkCurrent() }
                     .keyboardShortcut("b", modifiers: [.command, .shift])
                     .disabled(browser.active?.isBlank ?? true)
+                Button("New Folder") {
+                    Ask.name("New Folder", placeholder: "Name", confirm: "Create") { browser.bookmarks.makeFolder($0) }
+                }
                 Button("Show Bookmarks…") { browser.bookmarking = true }
                 Toggle("Show Bookmarks Bar", isOn: Binding(
                     get: { browser.prefs.bookmarksBar },

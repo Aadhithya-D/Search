@@ -39,6 +39,9 @@ final class Bookmarks: ObservableObject {
     /// space is on screen the first time that space is asked for.
     var carried = false
     @Published var roots: [Bookmark] = []
+    /// A folder a page was just filed into, so the column can open it and
+    /// show where the page landed (Fork/BookmarkFolders.swift).
+    @Published var reveal: Bookmark.ID?
 
     init() { load() }
 
@@ -118,7 +121,7 @@ final class Bookmarks: ObservableObject {
         save()
     }
 
-    private static func detach(_ id: Bookmark.ID, from nodes: inout [Bookmark]) -> Bookmark? {
+    static func detach(_ id: Bookmark.ID, from nodes: inout [Bookmark]) -> Bookmark? {
         for i in nodes.indices {
             if nodes[i].id == id { return nodes.remove(at: i) }
             guard nodes[i].children != nil else { continue }
@@ -132,7 +135,7 @@ final class Bookmarks: ObservableObject {
     }
 
     @discardableResult
-    private static func insert(_ node: Bookmark, into id: Bookmark.ID, nodes: inout [Bookmark]) -> Bool {
+    static func insert(_ node: Bookmark, into id: Bookmark.ID, nodes: inout [Bookmark]) -> Bool {
         for i in nodes.indices {
             if nodes[i].id == id, nodes[i].isFolder {
                 nodes[i].children = (nodes[i].children ?? []) + [node]
@@ -150,7 +153,7 @@ final class Bookmarks: ObservableObject {
 
     /// `id` is `node` itself, or somewhere inside it — also used by the
     /// outline to keep a folder out of its own "move to" list.
-    fileprivate static func holds(_ id: Bookmark.ID, _ node: Bookmark) -> Bool {
+    static func holds(_ id: Bookmark.ID, _ node: Bookmark) -> Bool {
         node.id == id || (node.children ?? []).contains { holds(id, $0) }
     }
 
@@ -443,6 +446,9 @@ struct BookmarksDropdown: View {
             Divider().overlay(Palette.hairline)
             VStack(spacing: 1) {
                 Foot("bookmark", "Add This Page") { browser.bookmarkCurrent() }
+                Foot("folder.badge.plus", "New Folder") {
+                    Ask.name("New Folder", placeholder: "Name", confirm: "Create") { bookmarks.makeFolder($0) }
+                }
                 Foot(nil, "Manage Bookmarks…") { browser.bookmarking = true }
             }
             .padding(6)
@@ -509,6 +515,9 @@ struct BookmarksPanel: View {
             }
         } foot: {
             HStack(spacing: 8) {
+                Pill("New Folder") {
+                    Ask.name("New Folder", placeholder: "Name", confirm: "Create") { bookmarks.makeFolder($0) }
+                }
                 Text("Bring in from")
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.muted)
