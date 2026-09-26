@@ -34,9 +34,12 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 8 | The column's first rows: lights with back/forward/reload, then the address | `SideAddress.swift`, `ExtensionsInline.swift` | `Lights.retarget`; `OfferList`; `AddressField(point:prompt:)`; `SiteCard(padded:reader:)` and public Row/Header/Separator; `Extensions.fallbackAnchor`; ⌘L unfolds; raised field only in strip layout; `sideMin` 200; pin gap 6; `./bench site PATH controls` | #262, #298 |
 | 9 | Bookmarks in the column, in folders that open in place | `SideMarks.swift` | `SideBar(bookmarks:)` and its folder state; tab rows file on drag (`Carried` lets the drag leave the list); foot bookmark door and bookmarks bar removed in the column | #262 |
 | 10 | The column's foot: library and downloads, spaces, new space | `SideFoot.swift` | `Loot.hauls`; download delegate calls `loot.start/name/end`; Theme… on the space name | #330 |
-| 11 | The column can sit on the right | — | `Preferences.sideRight` and Settings; page, peek, hidden panel, column edge and Fold follow the side | #340, #314 |
+| 11 | The column can sit on the right (and the fix after it: a folded column on the right peeks out on the right) | — | `Preferences.sideRight` and Settings; page, peek, hidden panel, column edge and Fold follow the side | #340, #314 |
 | 12 | A folded column shows a handle on its edge | `FoldedColumn.swift` | `Fold` tracks `edgeNear` and overlays `SideHandle` | #256, #243 |
 | 13 | The folded column floats as a card, lights inside it | `FoldedColumn.swift` | Fold styles the peeking column; `Lights.nudge` | #252 |
+| 15 | Closing the last open page lands on a new tab | `LastTabClosed.swift` | `Browser.close` asks `closesLastPage` | — |
+| 16 | Site icons follow the column's tone | `IconSurface.swift` | `Favicons.dark` asks `surfaceDark`; `Browser.follow` calls `followIconSurface`; `relook` not private | — |
+| 17 | The column's bookmarks fold under the space's name | `SideMarks.swift` (SectionHeader) | `SideBar.marksFolded`; rows, preview and `rowsEnd` skip a folded list | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of

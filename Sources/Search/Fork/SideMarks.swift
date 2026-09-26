@@ -40,20 +40,24 @@ extension SideBar {
 
     /// The space's name over its bookmarks, with its icon when it has one.
     /// Its first letter lines up with the icons of the rows beneath it.
-    func section(_ space: Space?) -> some View {
-        HStack(spacing: 6) {
-            if let space, space.hasIcon {
-                SpaceGlyph(space: space, size: 10)
-                    .foregroundStyle(Palette.quiet)
-            }
-            Text(space?.name ?? "")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Palette.quiet)
+    /// A click on it folds the bookmarks away, or brings them back.
+    func section(_ space: Space?, live: Bool = true) -> some View {
+        SectionHeader(space: space, folded: space.map { marksFolded.contains($0.id) } ?? false, live: live) {
+            guard let id = space?.id else { return }
+            var folded = marksFolded
+            if folded.contains(id) { folded.remove(id) } else { folded.insert(id) }
+            withAnimation(Motion.quick) { marksFolded = folded }
+            SideBar.keepFolded(folded)
         }
-        .padding(.leading, SideBar.inset)
-        .padding(.bottom, 4)
-        .frame(height: SideBar.section, alignment: .bottomLeading)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// The spaces whose bookmarks are folded away, as they were left.
+    static func foldedMarks() -> Set<UUID> {
+        Set((Store.settings.stringArray(forKey: "column.marks.folded") ?? []).compactMap(UUID.init))
+    }
+
+    static func keepFolded(_ folded: Set<UUID>) {
+        Store.settings.set(folded.map(\.uuidString).sorted(), forKey: "column.marks.folded")
     }
 
     /// The hairline between the space's bookmarks and its loose tabs, as Arc
@@ -519,5 +523,47 @@ private struct FolderIcon: View {
         }
         .font(.system(size: 12.5, weight: .medium))
         .frame(width: 15, height: 15)
+    }
+}
+
+/// The space's name over its bookmarks, with its icon when it has one. Its
+/// first letter lines up with the icons of the rows beneath it; a chevron at
+/// the end, under the pointer or while folded, says a click folds the list.
+private struct SectionHeader: View {
+    let space: Space?
+    let folded: Bool
+    let live: Bool
+    let toggle: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let space, space.hasIcon {
+                SpaceGlyph(space: space, size: 10)
+                    .foregroundStyle(Palette.quiet)
+            }
+            Text(space?.name ?? "")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Palette.quiet)
+            Spacer(minLength: 4)
+            if hovering || folded {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(Palette.quiet)
+                    .rotationEffect(.degrees(folded ? -90 : 0))
+                    .padding(.trailing, 8)
+                    .transition(.opacity)
+            }
+        }
+        .padding(.leading, SideBar.inset)
+        .padding(.bottom, 4)
+        .frame(height: SideBar.section, alignment: .bottomLeading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .onTapGesture { if live { toggle() } }
+        .onHover { hovering = $0 && live }
+        .animation(Motion.quick, value: hovering)
+        .animation(Motion.quick, value: folded)
+        .help(folded ? "Show Bookmarks" : "Hide Bookmarks")
     }
 }
