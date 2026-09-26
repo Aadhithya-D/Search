@@ -7,13 +7,30 @@ import AppKit
 
 extension Space {
     enum Tone: String, Codable, CaseIterable {
-        case auto, light, dark
+        // Soft and Deep are the middle ground: the pastel taken some way
+        // toward its deep twin, still worn with dark ink, and the deep colour
+        // brought some way up, still worn with light ink.
+        case auto, light, soft, deep, dark
         var title: String {
             switch self {
             case .auto: return "Auto"
             case .light: return "Light"
+            case .soft: return "Soft"
+            case .deep: return "Deep"
             case .dark: return "Dark"
             }
+        }
+    }
+
+    /// How far from the pastel (0) toward the deep colour (1) this space is
+    /// worn on a window that is `dark`.
+    func depth(on dark: Bool) -> CGFloat {
+        switch tone ?? .auto {
+        case .auto: return dark ? 1 : 0
+        case .light: return 0
+        case .soft: return 0.3
+        case .deep: return 0.62
+        case .dark: return 1
         }
     }
 
@@ -27,12 +44,9 @@ extension Space {
     var hasIcon: Bool { icon?.isEmpty == false }
 
     /// The colour's variant this space wears on a window that is `dark`.
+    /// Light ink from halfway down.
     func wearsDark(on dark: Bool) -> Bool {
-        switch tone ?? .auto {
-        case .auto: return dark
-        case .light: return false
-        case .dark: return true
-        }
+        depth(on: dark) >= 0.5
     }
 }
 
@@ -80,7 +94,7 @@ extension Spaces {
         let tint = tints[clamp(space.colour)]
         return NSColor(name: nil) { appearance in
             let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-            let c = space.wearsDark(on: dark) ? tint.dark : tint.light
+            let c = tint.at(space.depth(on: dark))
             return NSColor(srgbRed: c.0, green: c.1, blue: c.2, alpha: 1)
         }
     }
@@ -97,9 +111,9 @@ extension Spaces {
             : Color(hue: hue, saturation: 0.62, brightness: 0.62)
     }
 
-    /// The swatch of one tone of a colour, for the picker.
-    static func swatch(_ index: Int, dark: Bool) -> Color {
-        let c = dark ? tints[clamp(index)].dark : tints[clamp(index)].light
+    /// The swatch of a colour at a depth, for the picker.
+    static func swatch(_ index: Int, depth: CGFloat) -> Color {
+        let c = tints[clamp(index)].at(depth)
         return Color(red: c.0, green: c.1, blue: c.2)
     }
 
@@ -177,5 +191,16 @@ struct SpaceGlyph: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             NSApp.orderFrontCharacterPalette(nil)
         }
+    }
+}
+
+extension Spaces.Tint {
+    /// The pastel at 0, the deep colour at 1, and between them a straight
+    /// mix — the same hue, only lower.
+    func at(_ depth: CGFloat) -> (CGFloat, CGFloat, CGFloat) {
+        let t = min(1, max(0, depth))
+        return (light.0 + (dark.0 - light.0) * t,
+                light.1 + (dark.1 - light.1) * t,
+                light.2 + (dark.2 - light.2) * t)
     }
 }
