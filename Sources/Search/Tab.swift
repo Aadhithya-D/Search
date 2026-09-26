@@ -495,6 +495,17 @@ final class Tab: ObservableObject, Identifiable {
     /// The group that holds this ordinary tab in the sidebar.
     @Published var groupID: UUID?
 
+    // Fork: a sidebar bookmark's own page (Fork/BookmarkPages.swift).
+    /// The sidebar bookmark this page belongs to. It is drawn in that row,
+    /// not again in the tab list, and closing it leaves the bookmark.
+    var bookmark: UUID?
+
+    /// A sleeping tab, pointed at a different address before it is opened.
+    func aim(_ url: URL) {
+        guard asleep else { return }
+        pending = url
+    }
+
     /// A name you gave it, in place of whatever the page calls itself. It
     /// stays through navigation: a tab you named is a tab you are keeping for
     /// a job, not for a page.

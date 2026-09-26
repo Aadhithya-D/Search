@@ -85,8 +85,9 @@ struct TabBar: View {
                                                        group: nil, strip: geo.size.width)
                                             }
                                         } else {
-                                            ForEach(Array(browser.tabs.enumerated()), id: \.element.id) { index, tab in
-                                                topTab(tab, index: index, count: browser.tabs.count,
+                                            // Fork: a bookmark's page isn't in the row (Fork/BookmarkPages.swift).
+                                            ForEach(Array(browser.rowTabs.enumerated()), id: \.element.id) { index, tab in
+                                                topTab(tab, index: index, count: browser.rowTabs.count,
                                                        group: nil, strip: geo.size.width)
                                             }
                                         }
@@ -209,9 +210,10 @@ struct TabBar: View {
             let row = space.id == browser.spaceID
                 ? Parked(tabs: browser.tabs, active: browser.activeID)
                 : browser.parked[space.id] ?? Parked(tabs: [], active: nil)
-            let each = width(in: strip, pinned: row.tabs.filter { $0.pin != nil }.count, count: row.tabs.count)
+            let shown = row.tabs.filter { $0.bookmark == nil }
+            let each = width(in: strip, pinned: shown.filter { $0.pin != nil }.count, count: shown.count)
             HStack(spacing: Metrics.tabGap) {
-                ForEach(row.tabs) { tab in
+                ForEach(shown) { tab in
                     TabPill(
                         browser: browser,
                         prefs: browser.prefs,
@@ -285,7 +287,7 @@ struct TabBar: View {
         let pinned = CGFloat(browser.pinnedCount)
         let loose = browser.prefs.usesTabGroups
             ? CGFloat(browser.tabs(in: nil).count + browser.tabGroups.reduce(0) { $0 + browser.visibleTabs(in: $1).count })
-            : CGFloat(browser.tabs.count) - pinned
+            : CGFloat(browser.rowTabs.count) - pinned  // Fork: Fork/BookmarkPages.swift
         let headers = browser.prefs.usesTabGroups ? CGFloat(browser.tabGroups.count) : 0
         let headingWidth = browser.prefs.usesTabGroups
             ? browser.tabGroups.reduce(CGFloat.zero) { $0 + GroupHeading.width(for: $1.name) } : 0
@@ -324,7 +326,7 @@ struct TabBar: View {
                 + CGFloat(max(0, browser.pinnedCount + count + browser.tabGroups.count - 1)) * Metrics.tabGap
             return max(Metrics.tabMinWidth, min(Metrics.tabWidth, (room(in: strip) - spent) / CGFloat(count)))
         }
-        return width(in: strip, pinned: browser.pinnedCount, count: browser.tabs.count)
+        return width(in: strip, pinned: browser.pinnedCount, count: browser.rowTabs.count)  // Fork: Fork/BookmarkPages.swift
     }
 
     private func width(in strip: CGFloat, pinned pins: Int, count: Int) -> CGFloat {

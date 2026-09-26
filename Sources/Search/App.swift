@@ -146,7 +146,7 @@ struct SearchApp: App {
                 if let tab = browser.active {
                     if tab.pin == nil {
                         Button("Pin Tab") { browser.pin(tab) }
-                            .disabled(tab.isBlank || tab.shy)
+                            .disabled(tab.isBlank || tab.shy || tab.bookmark != nil)  // Fork: Fork/BookmarkPages.swift
                     } else {
                         Button("Change Letter") { browser.editLetter(tab) }
                         Button("Unpin Tab") { browser.unpin(tab) }

@@ -17,6 +17,9 @@ enum Session {
         var groupID: UUID? = nil
         /// A pin's identity, the same in every window (see Pins.swift).
         var pinID: UUID? = nil
+        /// Set when the tab is a sidebar bookmark's own page, so it comes
+        /// back in that row and not in the tab list.
+        var bookmark: UUID?
     }
 
     struct Shape: Codable {

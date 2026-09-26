@@ -705,6 +705,8 @@ final class Browser: NSObject, ObservableObject {
         // Pins are the space's, kept on disk and shown in every window: a
         // private tab can't be one, or its page would outlive it there.
         guard !tab.shy else { return }
+        // Fork: a bookmark's page stays in the bookmark (Fork/BookmarkPages.swift).
+        if tab.bookmark != nil { return }
         if tab.pin == nil {
             let previousGroup = tab.groupID
             tab.groupID = nil
@@ -1156,10 +1158,12 @@ final class Browser: NSObject, ObservableObject {
             tab.home = Browser.home(of: entry, at: url)
             tab.groupID = entry.pin == nil && tabGroups.contains(where: { $0.id == entry.groupID })
                 ? entry.groupID : nil
+            tab.bookmark = entry.bookmark  // Fork: Fork/BookmarkPages.swift
             row.append(tab)
         }
         let saidFront = row.indices.contains(saved.active) ? row[saved.active] : nil
         row = reconcilePins(row, space: spaceID)
+        row = Browser.filedLast(row)  // Fork: Fork/BookmarkPages.swift
         let front = saidFront.flatMap { f in row.contains { $0 === f } ? f : nil }
             ?? (saved.tabs.isEmpty ? nil : row.first { $0.pin == nil } ?? row.first)
         tabs += row
@@ -1179,6 +1183,7 @@ final class Browser: NSObject, ObservableObject {
             return
         }
         activeID = first.id
+        releaseForeignBookmarks()  // Fork: Fork/BookmarkPages.swift
         // Only the one you were looking at actually loads. Started hidden,
         // it waits for the extensions, which load at once then, so that
         // their scripts meant to run before the page's do (#199); a
@@ -1601,7 +1606,8 @@ final class Browser: NSObject, ObservableObject {
             entries.append(Session.Entry(
                 url: url.absoluteString, title: tab.title, pin: tab.pin, name: tab.name,
                 home: tab.pin == nil ? nil : tab.home?.absoluteString, groupID: tab.groupID,
-                pinID: tab.pin == nil ? nil : tab.pinID
+                pinID: tab.pin == nil ? nil : tab.pinID,
+                bookmark: tab.bookmark  // Fork: Fork/BookmarkPages.swift
             ))
         }
         // The tab you were on isn't kept — a private or blank one: the one
@@ -1671,7 +1677,8 @@ final class Browser: NSObject, ObservableObject {
         // never gone to cleared away — a row of identical empty tabs is what
         // pressing ⌘T twice, or holding it, used to leave.
         if let blank = tabs.last(where: { $0.isBlank && !$0.bench && !$0.shy }) {
-            if let end = tabs.indices.last, tabs.firstIndex(where: { $0.id == blank.id }) != end {
+            let end = rowEnd - 1  // Fork: Fork/BookmarkPages.swift
+            if end >= 0, tabs.firstIndex(where: { $0.id == blank.id }) != end {
                 move(blank, to: end)
             }
             if activeID != blank.id { leaving() }
@@ -1761,7 +1768,7 @@ final class Browser: NSObject, ObservableObject {
             // kind meant closing one pin landed you on another pin, and ⌘W
             // bounced between the two instead of getting you out of them.
             let others = tabs.filter { $0.id != tab.id && !$0.asleep }
-            let loose = others.filter { $0.pin == nil }
+            let loose = others.filter { $0.pin == nil && $0.bookmark == nil }  // Fork: Fork/BookmarkPages.swift
             if let back = (loose.isEmpty ? others : loose).max(by: { $0.touched < $1.touched }) {
                 select(back)
             } else {
@@ -1796,7 +1803,15 @@ final class Browser: NSObject, ObservableObject {
             // right — through select(), same as everywhere else you land on
             // a tab, so one that was never built yet actually wakes up
             // instead of sitting there blank until a manual reload.
-            select(tabs[min(index, tabs.count - 1)])
+            // Fork: closing a bookmark, or the tab beside one, lands in the
+            // row when there is one (Fork/BookmarkPages.swift).
+            let neighbor = tabs[min(index, tabs.count - 1)]
+            if tab.bookmark != nil || neighbor.bookmark != nil,
+               let row = tabs.last(where: { $0.bookmark == nil }) {
+                select(row)
+            } else {
+                select(neighbor)
+            }
         }
         rememberSession()
     }
@@ -1850,7 +1865,7 @@ final class Browser: NSObject, ObservableObject {
         tab.groupID = prefs.usesTabGroups && tabGroups.contains(where: { $0.id == ghost.groupID })
             ? ghost.groupID : nil
         leaving()
-        tabs.insert(tab, at: min(ghost.index, tabs.count))
+        tabs.insert(tab, at: min(ghost.index, rowEnd))  // Fork: Fork/BookmarkPages.swift
         activeID = tab.id
         editing = false
         typed = ""
@@ -1871,8 +1886,9 @@ final class Browser: NSObject, ObservableObject {
         // The pinned block and the loose one don't mix: a letter that wandered
         // into the middle of the titles would stop meaning anything.
         let pinned = pinnedCount
+        if tab.bookmark != nil { return }  // Fork: Fork/BookmarkPages.swift
         if tab.pin != nil, index >= pinned { return }
-        if tab.pin == nil, index < pinned { return }
+        if tab.pin == nil, index < pinned || index >= rowEnd { return }
         tabs.move(fromOffsets: IndexSet(integer: here), toOffset: index > here ? index + 1 : index)
         rememberSession()
     }
@@ -2100,7 +2116,8 @@ final class Browser: NSObject, ObservableObject {
         let pins = tabs.filter { $0.pin != nil }
         let grouped = tabGroups.flatMap { group in tabs.filter { self.group(of: $0) == group.id } }
         let ungrouped = tabs.filter { $0.pin == nil && group(of: $0) == nil }
-        let order = pins + grouped + ungrouped
+        // Fork: a bookmark's pages stay behind the row (Fork/BookmarkPages.swift).
+        let order = Browser.filedLast(pins + grouped + ungrouped)
         // Setting the row runs this again, which then finds nothing to do.
         guard !order.elementsEqual(tabs, by: { $0.id == $1.id }) else { return }
         tabs = order
@@ -2114,7 +2131,8 @@ final class Browser: NSObject, ObservableObject {
     }
 
     func tabs(in group: UUID?) -> [Tab] {
-        tabs.filter { $0.pin == nil && self.group(of: $0) == group }
+        // Fork: a bookmark's page isn't in the row (Fork/BookmarkPages.swift).
+        tabs.filter { $0.pin == nil && $0.bookmark == nil && self.group(of: $0) == group }
     }
 
     /// A folded group shows its name alone — and the tab you are on, if it
@@ -2135,7 +2153,7 @@ final class Browser: NSObject, ObservableObject {
     /// in a group are not among them. ⌘1–9 and ⌃Tab count these, so the key
     /// goes to the tab you see in that place, never to one you can't.
     var shownTabs: [Tab] {
-        guard prefs.usesTabGroups else { return tabs }
+        guard prefs.usesTabGroups else { return rowTabs }  // Fork: Fork/BookmarkPages.swift
         return tabs.filter { $0.pin != nil }
             + tabGroups.flatMap { visibleTabs(in: $0) }
             + tabs(in: nil)
@@ -2203,7 +2221,7 @@ final class Browser: NSObject, ObservableObject {
         // A link opened from a grouped tab joins its group, only while groups
         // are on: turned off, they sleep, and nothing new goes into one.
         if prefs.usesTabGroups, let source, !tab.shy, !tab.bench { tab.groupID = source.groupID }
-        tabs.insert(tab, at: atEnd ? tabs.count : placeForNew())
+        tabs.insert(tab, at: atEnd ? rowEnd : placeForNew())  // Fork: Fork/BookmarkPages.swift
         if mayWait, !foreground, prefs.lazyTabs, page == nil {
             tab.restore(url: url, title: "")
         } else {
@@ -2247,6 +2265,7 @@ final class Browser: NSObject, ObservableObject {
         prepare(fresh)
         fresh.groupID = tab.groupID
         let wasActive = activeID == tab.id
+        fresh.bookmark = tab.bookmark  // Fork: Fork/BookmarkPages.swift
         tabs[index] = fresh
         fresh.go(to: url)
         if wasActive { activeID = fresh.id }
@@ -2283,7 +2302,7 @@ final class Browser: NSObject, ObservableObject {
         let url = Browser.page(url)
         let tab = Tab(shy: shy, bench: true, configuration: shy ? nil : Browser.extensionConfiguration(for: url))
         prepare(tab)
-        tabs.append(tab)
+        tabs.insert(tab, at: rowEnd)  // Fork: Fork/BookmarkPages.swift
         tab.go(to: url)
         return tab
     }
@@ -2305,13 +2324,47 @@ final class Browser: NSObject, ObservableObject {
     /// held, or when the one you are on is busy playing in the float.
     func visit(_ url: URL) {
         let apart = NSApp.currentEvent?.modifierFlags.contains(.command) ?? false
-        if let active, !apart, !active.floating {
+        if let active, active.bookmark == nil, !apart, !active.floating {  // Fork: Fork/BookmarkPages.swift
             active.go(to: url)
             editing = false
             typed = ""
         } else {
             open(url, foreground: true, from: active)
         }
+    }
+
+    // Fork: see Fork/BookmarkPages.swift.
+    /// A bookmark in the column. It is its own page, kept in that row: the
+    /// click opens it there, or comes back to it, and does not add a tab
+    /// under the bookmarks. A page already open for it is the one shown.
+    func openBookmark(_ id: Bookmark.ID, _ url: URL) {
+        bookmarksOpen = false
+        bookmarking = false
+        let url = Browser.page(url)
+        if let existing = tabs.first(where: { $0.bookmark == id }) {
+            let showing = existing.pending ?? existing.address
+            if existing.asleep {
+                existing.aim(url)
+            } else if showing != url {
+                existing.go(to: url)
+            }
+            if existing.id == activeID {
+                if existing.asleep { existing.wake() }
+            } else {
+                select(existing)
+            }
+            return
+        }
+        let tab = Tab(configuration: Browser.extensionConfiguration(for: url) ?? Web.configuration(space: spaceID))
+        tab.bookmark = id
+        prepare(tab)
+        tabs.append(tab)
+        tab.go(to: url)
+        leaving()
+        activeID = tab.id
+        editing = false
+        typed = ""
+        rememberSession()
     }
 
     /// A bookmark picked from the button's list or the full one. Either
@@ -2338,7 +2391,8 @@ final class Browser: NSObject, ObservableObject {
         // Never two empty private tabs, as ⌘T never makes two empty ones:
         // one already open comes to the end of the row and is the one opened.
         if let blank = tabs.last(where: { $0.isBlank && $0.shy && !$0.bench }) {
-            if let end = tabs.indices.last, tabs.firstIndex(where: { $0.id == blank.id }) != end {
+            let end = rowEnd - 1  // Fork: Fork/BookmarkPages.swift
+            if end >= 0, tabs.firstIndex(where: { $0.id == blank.id }) != end {
                 move(blank, to: end)
             }
             if activeID != blank.id { leaving() }
@@ -2423,10 +2477,12 @@ final class Browser: NSObject, ObservableObject {
             tab.home = Browser.home(of: entry, at: url)
             tab.groupID = entry.pin == nil && savedGroups.contains(where: { $0.id == entry.groupID })
                 ? entry.groupID : nil
+            tab.bookmark = entry.bookmark  // Fork: Fork/BookmarkPages.swift
             row.append(tab)
         }
         let said = row.indices.contains(saved.active) ? row[saved.active].id : nil
         row = reconcilePins(row, space: space)
+        row = Browser.filedLast(row)  // Fork: Fork/BookmarkPages.swift
         let active = said.flatMap { id in row.contains { $0.id == id } ? id : nil } ?? row.first?.id
         return Parked(tabs: row, active: active)
     }
@@ -2436,6 +2492,7 @@ final class Browser: NSObject, ObservableObject {
     func showRow(_ row: [Tab], active: Tab.ID?) {
         tabs = row
         activeID = active ?? row.first?.id
+        releaseForeignBookmarks()  // Fork: Fork/BookmarkPages.swift
     }
 
     /// Where a new tab goes: beside the tab you are on — but never among the
@@ -2443,8 +2500,12 @@ final class Browser: NSObject, ObservableObject {
     /// them. A link from another app, with a pin in front, landed between two
     /// (#219).
     func placeForNew() -> Int {
-        guard let here = tabs.firstIndex(where: { $0.id == activeID }) else { return tabs.count }
-        return max(here + 1, pinnedCount)
+        // Fork: never after a bookmark's pages (Fork/BookmarkPages.swift).
+        let end = rowEnd
+        guard let here = tabs.firstIndex(where: { $0.id == activeID }),
+              tabs[here].bookmark == nil
+        else { return end }
+        return min(max(here + 1, pinnedCount), end)
     }
 
     /// A tab made outside the row — a peek being kept — put in it at `index`.
@@ -2455,7 +2516,7 @@ final class Browser: NSObject, ObservableObject {
 
     private func adopt(_ tab: Tab) {
         prepare(tab)
-        tabs.append(tab)
+        tabs.insert(tab, at: rowEnd)  // Fork: Fork/BookmarkPages.swift
         if activeID == nil { activeID = tab.id }
     }
 
