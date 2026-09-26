@@ -10,6 +10,7 @@ struct SideBar: View {
     @ObservedObject var browser: Browser
     @ObservedObject var prefs: Preferences
 
+    @Environment(\.colorScheme) private var windowScheme
     @Namespace private var pill
 
     @State private var landing = false
@@ -86,11 +87,17 @@ struct SideBar: View {
         // Rows on their way to or from another space stay in the column.
         .clipped()
         .onAppear { SpaceSwipe.shared.start(for: browser) }
-        .background(landing ? Palette.hover : Palette.ground)
-        .overlay(alignment: .trailing) {
-            Rectangle().fill(Palette.hairline).frame(width: 1)
+        // Fork: the space's own colour, grained (Fork/ColumnColour.swift).
+        .background {
+            ZStack {
+                Spaces.ground(browser.space)
+                Grain()
+            }
         }
         .overlay(alignment: .trailing) { edge }
+        // A pastel worn on a dark window takes dark ink, and the other way
+        // round: the column is drawn in its colour's own light or dark.
+        .environment(\.colorScheme, browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light)
         .onDrop(of: [.url, .text], isTargeted: $landing) { providers in
             browser.take(providers)
         }
@@ -496,6 +503,7 @@ private struct PinSquare: View {
     var height: CGFloat = 34
 
     @State private var hovering = false
+    @Environment(\.colorScheme) private var scheme
 
     /// Everything drawn inside scales off the shorter edge — the one that
     /// stays put — so the glyph sits at its usual size, centred, rather than
@@ -511,7 +519,7 @@ private struct PinSquare: View {
             } else {
                 Text(tab.pin ?? "")
                     .font(.system(size: scale * 12 / 34, weight: .medium))
-                    .foregroundStyle((live ? Palette.ink : Palette.muted).opacity(tab.asleep ? 0.45 : 1))
+                    .foregroundStyle((live ? Palette.ink : Palette.quiet).opacity(tab.asleep ? 0.45 : 1))
             }
         }
         .frame(width: scale * 16 / 34, height: scale * 16 / 34)
@@ -519,11 +527,11 @@ private struct PinSquare: View {
         .background {
             if live {
                 RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous)
-                    .fill(Palette.wash)
+                    .fill(SideTone.chip(scheme, strong: true))
                     .matchedGeometryEffect(id: "live", in: pill)
             } else {
                 RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous)
-                    .fill(hovering ? Palette.hover : Palette.wash.opacity(0.55))
+                    .fill(SideTone.chip(scheme, strong: false).opacity(hovering ? 1 : 0.7))
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous))
@@ -551,6 +559,7 @@ private struct SideRow: View {
 
     @State private var hovering = false
     @State private var shake: CGFloat = 0
+    @Environment(\.colorScheme) private var scheme
 
     private var editing: Bool { browser.editingTab == tab.id }
 
@@ -568,8 +577,17 @@ private struct SideRow: View {
                 TabAddressField(browser: browser)
                     .frame(height: 16)
             } else {
-                if prefs.glyph == .icons, !tab.isBlank {
-                    Mark(icon: tab.icon, letter: tab.monogram, size: 15)
+                if prefs.glyph == .icons {
+                    if tab.isBlank {
+                        // Nothing to show yet, but the title still starts
+                        // where every other row's does.
+                        Image(systemName: "globe")
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(Palette.hush)
+                            .frame(width: 15, height: 15)
+                    } else {
+                        Mark(icon: tab.icon, letter: tab.monogram, size: 15)
+                    }
                 }
                 if tab.bench {
                     // A script's tab, not yours.
@@ -606,7 +624,7 @@ private struct SideRow: View {
                 .padding(.trailing, hovering && speaker ? 23 : 0)
             }
         }
-        .padding(.leading, 10)
+        .padding(.leading, SideBar.inset)
         .padding(.trailing, status ? 7 : 10)
         .frame(height: 28)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -630,7 +648,7 @@ private struct SideRow: View {
                     if hovering {
                         Image(systemName: "xmark")
                             .font(.system(size: 8, weight: .semibold))
-                            .foregroundStyle(Palette.muted)
+                            .foregroundStyle(Palette.quiet)
                             .frame(width: 15, height: 15)
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .transition(.opacity)
@@ -671,7 +689,7 @@ private struct SideRow: View {
     private var ground: some View {
         if live {
             ZStack(alignment: .leading) {
-                Rectangle().fill(Palette.wash)
+                Rectangle().fill(SideTone.chip(scheme, strong: true))
                 if prefs.showsReading {
                     GeometryReader { geo in
                         Rectangle()
@@ -685,15 +703,17 @@ private struct SideRow: View {
             .matchedGeometryEffect(id: "live", in: pill)
         } else if hovering {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Palette.hover)
+                .fill(SideTone.chip(scheme, strong: false))
         }
     }
 
     private var colour: Color {
         if live { return Palette.ink }
-        return hovering ? Palette.ink.opacity(0.7) : Palette.muted
+        return hovering ? Palette.ink : Palette.ink.opacity(0.78)
     }
 }
+
+/// White on the space's colour: the tab you are on, and the row under the pointer.
 
 /// A row that is an action rather than a page. Quiet until the pointer is on it.
 struct Quiet: View {
@@ -703,24 +723,25 @@ struct Quiet: View {
     let act: () -> Void
 
     @State private var hovering = false
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Button(action: act) {
             HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.system(size: 11, weight: .medium))
                     .frame(width: 15)
                 Text(title)
                     .font(.system(size: 12.5))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(hovering ? Palette.ink.opacity(0.7) : Palette.faint)
+            .foregroundStyle(hovering ? Palette.ink.opacity(0.8) : Palette.quiet)
             .padding(.leading, 10)
             .frame(height: height)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
-                    .fill(hovering ? Palette.hover : .clear)
+                    .fill(hovering ? SideTone.chip(scheme, strong: false) : .clear)
             )
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
@@ -743,7 +764,7 @@ struct Speaker: View {
         Button(action: tab.toggleMute) {
             Image(systemName: tab.muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                 .font(.system(size: 8))
-                .foregroundStyle(Palette.muted)
+                .foregroundStyle(Palette.quiet)
                 .frame(width: 15, height: 15)
                 .background(Palette.ink.opacity(hovering ? 0.07 : 0), in: Circle())
                 .contentShape(Circle())
@@ -768,11 +789,11 @@ struct Door: View {
         Button(action: act) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(on ? Palette.ink : (hovering ? Palette.ink.opacity(0.7) : Palette.muted))
+                .foregroundStyle(on ? Palette.ink : (hovering ? Palette.ink.opacity(0.7) : Palette.quiet))
                 .frame(width: 26, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(on ? Palette.wash : (hovering ? Palette.hover : .clear))
+                        .fill(on ? Palette.veilStrong : (hovering ? Palette.veil : .clear))
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
