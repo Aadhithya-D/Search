@@ -1199,6 +1199,7 @@ final class Browser: NSObject, ObservableObject {
     /// read where they are used.
     private func follow() {
         followStore()
+        followIconSurface()
         // Spaces turned off: back to the first, whose tabs are the ones there
         // were before (see Spaces.swift).
         prefs.$usesSpaces
@@ -1338,7 +1339,7 @@ final class Browser: NSObject, ObservableObject {
             .store(in: &bag)
     }
 
-    private func relook() {
+    func relook() {
         Favicons.shared.relook(tabs.filter { !$0.asleep })
     }
 
