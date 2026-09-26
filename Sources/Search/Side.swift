@@ -33,7 +33,7 @@ struct SideBar: View {
     private static let row: CGFloat = 28
     private static let gap: CGFloat = 2
     private static let square: CGFloat = 34
-    private static let pinGap: CGFloat = 4
+    private static let pinGap: CGFloat = 6
 
     private var onRight: Bool { prefs.sidePosition == .right }
     private var innerEdge: Alignment { onRight ? .leading : .trailing }
@@ -45,30 +45,40 @@ struct SideBar: View {
             DragStrip(reserved: 0, below: browser.makingSpace ? .greatestFiniteMagnitude : rowsEnd, onDoubleClick: browser.newTab)
 
             // The band the lights sit in is this mode's title bar: the window
-            // is dragged by it and a double-click fills the screen with it,
-            // everywhere but over the three doors, which take their own
-            // clicks. The lights are the title bar's own and answer first.
+            // is dragged by it and a double-click fills the screen with it.
+            // The lights and the doors at the other end are views of their
+            // own and answer first.
             HStack(spacing: 0) {
                 DragStrip()
                     .frame(width: 10 + Metrics.sideLights)
-                Color.clear
-                    .frame(width: Metrics.helm)
-                    .allowsHitTesting(false)
                 DragStrip()
             }
-            .frame(height: Metrics.strip)
+            .frame(height: SideBar.topRow)
 
             VStack(alignment: .leading, spacing: 0) {
-                // The traffic lights' corner, with back, forward and reload
-                // sitting right of them — the same three doors as the top
-                // bar, moved beside the lights since there's no far end of a
-                // row to put them at in this mode.
-                HStack(spacing: 0) {
+                // Fork: the traffic lights' corner, with back, forward and
+                // reload at the end of the same line, and the address as the
+                // row under them (Fork/SideAddress.swift).
+                HStack(spacing: 2) {
                     Color.clear.frame(width: Metrics.sideLights)
-                    Helm(browser: browser)
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
+                    // Never wider than the column: a narrow one keeps the
+                    // three doors and lets the extensions' button go — the
+                    // same list is in the site's controls, under the address
+                    // — rather than pushing the column out past its edges.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 2) {
+                            ExtensionSlot(edge: .bottom)
+                            Helm(browser: browser)
+                        }
+                        Helm(browser: browser)
+                    }
                 }
-                .frame(height: Metrics.strip)
+                .frame(width: prefs.sideWidth - 20, height: SideBar.topRow)
+
+                SideAddress(browser: browser)
+                    .padding(.bottom, SideAddress.below)
+                    .zIndex(2)
 
                 // The spaces side by side, as pages: two fingers sideways move
                 // the one on screen and the next one together, the next one
@@ -268,10 +278,11 @@ struct SideBar: View {
         let pinBlock = pins == 0 ? 0 : (pinCells(pins).map(\.maxY).max() ?? 0) + 10
         let count = prefs.usesTabGroups
             ? browser.tabs(in: nil).count + browser.tabGroups.reduce(0) { $0 + browser.visibleTabs(in: $1).count }
-            : browser.tabs.count - pins
+            : browser.rowTabs.count - pins
         let headings = prefs.usesTabGroups ? CGFloat(browser.tabGroups.count) * (GroupHeading.height + SideBar.gap) : 0
         let loose = CGFloat(count) * (SideBar.row + SideBar.gap) + headings
-        return Metrics.strip + pinBlock + loose + SideBar.row + 8
+        // Fork: the lights' row and the address above (Fork/SideAddress.swift).
+        return SideBar.topRow + SideAddress.block + pinBlock + loose + SideBar.row + 8
     }
 
     // MARK: - the pinned squares
@@ -488,7 +499,6 @@ struct SideBar: View {
     private var foot: some View {
         HStack(spacing: 2) {
             if browser.prefs.usesSpaces { SpaceDot(browser: browser) }
-            ExtensionSlot(edge: .trailing)
             BookmarkDoor(browser: browser, arrowEdge: .trailing)
             // Only while a download is running, and a moment after.
             FetchDoor(browser: browser, fetches: browser.fetches)
@@ -710,7 +720,7 @@ private struct SideRow: View {
         .modifier(Shake(travel: shake))
         .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         .modifier(OneClick(double: false) {
-            if live { browser.beginTabEdit(tab) } else { browser.select(tab) }
+            browser.select(tab)
         })
         .overlay { MiddleClick(act: close) }
         .onHover { hovering = $0 }

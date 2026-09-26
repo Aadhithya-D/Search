@@ -170,7 +170,15 @@ struct SiteCard: View {
     /// been asked, off the main thread: asking can go to the network.
     @State private var certified: Bool?
 
-    init(browser: Browser, tab: Tab, deeper: Bool = false, close: @escaping () -> Void) {
+    /// Its own air above and below; off where it is one part of a longer menu.
+    var padded = true
+    /// Reading mode's line among the page's own, where the card is the top
+    /// of the site's controls rather than a card on its own.
+    var reader = false
+
+    init(browser: Browser, tab: Tab, deeper: Bool = false, padded: Bool = true, reader: Bool = false, close: @escaping () -> Void) {
+        self.padded = padded
+        self.reader = reader
         self.browser = browser
         self.tab = tab
         self.close = close
@@ -185,7 +193,7 @@ struct SiteCard: View {
                 front
             }
         }
-        .padding(.vertical, MenuMetrics.pad)
+        .padding(.vertical, padded ? MenuMetrics.pad : 0)
         .frame(minWidth: 180)
         .fixedSize()
         .transition(.opacity)
@@ -210,11 +218,17 @@ struct SiteCard: View {
             if let url = tab.pageAddress {
                 Header(title: SiteCard.site(url))
             }
+            // Who the page is and how it came, then what can be done with it.
             if let safety {
                 Row(safety.title, submenu: true) { deeper = true }
             }
-            Row("Copy Address", keys: "⇧⌘C") { after { browser.copyAddress() } }
             Separator()
+            if reader {
+                Row(tab.reader ? "Hide Reader" : "Show Reader", keys: "⇧⌘R") {
+                    after { browser.toggleReader() }
+                }
+            }
+            Row("Copy Address", keys: "⇧⌘C") { after { browser.copyAddress() } }
             Row("Print…", keys: "⌘P") { after { browser.printPage() } }
             zoom
             sound
@@ -405,7 +419,7 @@ struct SiteCard: View {
     /// a menu puts its text, a key equivalent at the end, the accent colour
     /// behind it and white letters under the pointer. A line that opens more
     /// ends in the submenu's chevron.
-    private struct Row: View {
+    struct Row: View {
         let title: String
         var keys = ""
         var submenu = false
@@ -455,7 +469,7 @@ struct SiteCard: View {
     }
 
     /// The site's name over the lines, as a menu's section header is drawn.
-    private struct Header: View {
+    struct Header: View {
         let title: String
 
         var body: some View {
@@ -470,7 +484,7 @@ struct SiteCard: View {
     }
 
     /// A menu's separator: a hairline in its own band.
-    private struct Separator: View {
+    struct Separator: View {
         var body: some View {
             Rectangle()
                 .fill(Color(nsColor: .separatorColor))

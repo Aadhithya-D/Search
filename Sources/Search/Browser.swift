@@ -2876,6 +2876,12 @@ final class Browser: NSObject, ObservableObject {
     func edit() {
         summoning = false
         typed = active?.address?.absoluteString ?? ""
+        // Fork: the address lives in the column. Folded, it has to come out
+        // before the field can take the key.
+        if prefs.sidebar, folded {
+            peeking = false
+            folded = false
+        }
         editing = true
         focusRequest += 1
     }
