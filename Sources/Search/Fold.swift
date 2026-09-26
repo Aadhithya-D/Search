@@ -67,6 +67,8 @@ struct Fold: View {
     @State private var arriving: DispatchWorkItem?
     /// The pointer is over the column.
     @State private var inside = false
+    /// Fork: the pointer is close enough to the column's edge for its handle.
+    @State private var edgeNear = false
     @State private var pointer = Pointer()
 
     /// How near the edge the pointer has to be.
@@ -74,6 +76,8 @@ struct Fold: View {
     /// How far past the window's edge, on the column's side, the pointer
     /// still counts as on it.
     private static let overshoot: CGFloat = 48
+    /// How near the column's edge its handle fades in.
+    private static let approach: CGFloat = 56
     /// The grace before the column goes back in.
     private static let grace: TimeInterval = 0.3
     /// How far down from the top, in full screen, the edge leaves the
@@ -135,6 +139,18 @@ struct Fold: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: onRight ? .topTrailing : .topLeading)
+        // Fork: a handle on the folded column's edge (Fork/FoldedColumn.swift).
+        .overlay(alignment: onRight ? .trailing : .leading) {
+            if prefs.sidebar, folding, !browser.peeking {
+                SideHandle(right: onRight, near: edgeNear) {
+                    pass()
+                    withAnimation(Motion.glide) {
+                        browser.peeking = false
+                        browser.folded = false
+                    }
+                }
+            }
+        }
         .ignoresSafeArea()
         .onAppear {
             hideLights()
@@ -235,6 +251,7 @@ struct Fold: View {
             pointer.start { follow() }
         } else {
             pointer.stop()
+            if edgeNear { edgeNear = false }
         }
     }
 
@@ -261,6 +278,12 @@ struct Fold: View {
         let overshot = beside && pointer.crossing
             && NSScreen.screens.contains { $0.visibleFrame.contains(screen) }
         pointer.crossing = inWindow || overshot
+        // Fork: the handle fades in near the edge (Fork/FoldedColumn.swift).
+        if prefs.sidebar {
+            let near = inWindow && distance >= 0 && distance < Fold.approach
+                && NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber
+            if near != edgeNear { edgeNear = near }
+        }
         if browser.peeking {
             pass()
             // Only this window counts, not another app's window over it. One
