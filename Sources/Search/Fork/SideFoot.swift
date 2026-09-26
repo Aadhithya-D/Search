@@ -129,7 +129,7 @@ struct ThemePicker: View {
     private var space: Space { browser.space }
 
     /// The swatches in the tone the column will actually wear.
-    private var showsDark: Bool { space.wearsDark(on: scheme == .dark) }
+    private var shownDepth: CGFloat { space.depth(on: scheme == .dark) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -137,21 +137,25 @@ struct ThemePicker: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(Palette.ink)
 
-            Picker("", selection: Binding(
-                get: { space.tone ?? .auto },
-                set: { browser.setSpaceTone(space.id, to: $0) }
-            )) {
-                ForEach(Space.Tone.allCases, id: \.self) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .help("Auto follows the window. Light keeps the pastel on a dark window; Dark keeps the deep colour on a light one.")
+            // The app's own control, sharing the card's width evenly: the
+            // system's segments are sized to their words, and five of them
+            // ran past both edges of the card.
+            Segmented(
+                options: Space.Tone.allCases.map { ($0, $0.title) },
+                selection: Binding(
+                    get: { space.tone ?? .auto },
+                    set: { browser.setSpaceTone(space.id, to: $0) }
+                ),
+                wide: true
+            )
+            .frame(maxWidth: .infinity)
+            .help("Auto follows the window. Light and Dark keep the pastel or the deep colour whatever the window; Soft and Deep are the two in between.")
 
             LazyVGrid(columns: columns, spacing: 6) {
                 ForEach(Array(Spaces.tints.enumerated()), id: \.offset) { index, tint in
                     let on = Spaces.clamp(space.colour) == index
                     Circle()
-                        .fill(Spaces.swatch(index, dark: showsDark))
+                        .fill(Spaces.swatch(index, depth: shownDepth))
                         .frame(width: 22, height: 22)
                         .overlay {
                             Circle().strokeBorder(Color.primary.opacity(on ? 0.85 : 0.12), lineWidth: on ? 2 : 1)
