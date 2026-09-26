@@ -122,7 +122,11 @@ struct Fold: View {
                         .transition(.move(edge: prefs.sideRight ? .trailing : .leading).combined(with: .opacity))
                 }
             }
-            .frame(maxHeight: .infinity)
+            // The whole window's width, or the column's own edge is nowhere
+            // to line up with: sized to the column, this stack sat at the
+            // outer stack's leading edge, and a column set on the right
+            // peeked out on the left.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: prefs.sideRight ? .trailing : .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // Fork: a handle on the folded column's edge (Fork/FoldedColumn.swift).
