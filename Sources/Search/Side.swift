@@ -46,6 +46,8 @@ struct SideBar: View {
     /// The neighbouring space's list is drawn too, and must not light up
     /// when this space's drag passes a folder.
     @State private var idleAim = DropAim()
+    /// Fork: the spaces whose bookmarks are folded under their name.
+    @State var marksFolded: Set<UUID> = SideBar.foldedMarks()
     /// The theme, open off the space on screen (Fork/SideFoot.swift).
     @State private var theming = false
 
@@ -289,13 +291,15 @@ struct SideBar: View {
                 }
                 .padding(.bottom, 8)
             }
-            section(browser.spaces.first { $0.id == space })
-            SideMarks(
-                browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: idleAim,
-                tree: bookmarks.nodes(in: space),
-                tabs: row.tabs, active: row.active,
-                colour: browser.spaces.first { $0.id == space }?.colour
-            )
+            section(browser.spaces.first { $0.id == space }, live: false)
+            if !marksFolded.contains(space) {
+                SideMarks(
+                    browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: idleAim,
+                    tree: bookmarks.nodes(in: space),
+                    tabs: row.tabs, active: row.active,
+                    colour: browser.spaces.first { $0.id == space }?.colour
+                )
+            }
             rule
             newTab
             VStack(spacing: SideBar.gap) {
@@ -320,8 +324,8 @@ struct SideBar: View {
         let loose = CGFloat(count) * (SideBar.row + SideBar.gap) + headings
         // Fork: the lights, the address, the space's name, the bookmark rows,
         // New Tab, and the loose tabs (Fork/SideAddress.swift, Fork/SideMarks.swift).
-        let marks = CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty))
-            * (SideBar.row + SideBar.gap)
+        let marks = marksFolded.contains(browser.spaceID) ? 0
+            : CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty)) * (SideBar.row + SideBar.gap)
         return SideBar.topRow + SideAddress.block + pinBlock + SideBar.section + marks + SideBar.ruleHeight + loose + (SideBar.row + SideBar.gap) + 16
     }
 
@@ -534,7 +538,10 @@ struct SideBar: View {
                     Button("New Folder") { newFolder(into: nil) }
                     Button("Theme…") { theming = true }
                 }
-            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
+            if !marksFolded.contains(browser.spaceID) {
+                SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
+                    .transition(.opacity)
+            }
             rule
             newTab
             loose
