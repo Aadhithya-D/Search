@@ -59,10 +59,14 @@ struct Fold: View {
     @State private var arriving: DispatchWorkItem?
     /// The pointer is over the column.
     @State private var inside = false
+    /// Fork: the pointer is close enough to the column's edge for its handle.
+    @State private var edgeNear = false
     @State private var pointer = Pointer()
 
     /// How near the edge the pointer has to be.
     private static let edge: CGFloat = 6
+    /// How near the column's edge its handle fades in.
+    private static let approach: CGFloat = 56
     /// The grace before the column goes back in.
     private static let grace: TimeInterval = 0.3
     /// The band along the top that is the title bar over the page.
@@ -110,6 +114,18 @@ struct Fold: View {
             .frame(maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // Fork: a handle on the folded column's edge (Fork/FoldedColumn.swift).
+        .overlay(alignment: prefs.sideRight ? .trailing : .leading) {
+            if prefs.sidebar, folding, !browser.peeking {
+                SideHandle(right: prefs.sideRight, near: edgeNear) {
+                    pass()
+                    withAnimation(Motion.glide) {
+                        browser.peeking = false
+                        browser.folded = false
+                    }
+                }
+            }
+        }
         .ignoresSafeArea()
         .onAppear {
             hideLights()
@@ -163,6 +179,7 @@ struct Fold: View {
             pointer.start { follow() }
         } else {
             pointer.stop()
+            if edgeNear { edgeNear = false }
         }
     }
 
@@ -179,6 +196,11 @@ struct Fold: View {
         let inWindow = point.x >= 0 && point.x < size.width && point.y >= 0 && point.y < size.height
         // Distance from the column's edge for the column, from the top for the strip.
         let distance = prefs.sidebar ? (prefs.sideRight ? size.width - point.x : point.x) : size.height - point.y
+        if prefs.sidebar {
+            let near = inWindow && distance >= 0 && distance < Fold.approach
+                && NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber
+            if near != edgeNear { edgeNear = near }
+        }
         if browser.peeking {
             pass()
             // Only this window counts, not another app's window over it. One
