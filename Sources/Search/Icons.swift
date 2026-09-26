@@ -30,7 +30,8 @@ final class Favicons {
     /// for `prefers-color-scheme: dark` is asked for that one, and it is
     /// kept apart from the light one, so switching looks switches icons.
     static var dark: Bool {
-        NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        // Fork: the surface the icons are drawn on (Fork/IconSurface.swift).
+        surfaceDark ?? (NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua)
     }
 
     /// The name an icon is kept under: the host, with a suffix for the dark
