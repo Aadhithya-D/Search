@@ -57,7 +57,7 @@ struct TabBar: View {
                             ScrollViewReader { reader in
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: Metrics.tabGap) {
-                                        ForEach(Array(browser.tabs.enumerated()), id: \.element.id) { index, tab in
+                                        ForEach(Array(browser.rowTabs.enumerated()), id: \.element.id) { index, tab in
                                             // A pinned square moves among pinned squares, a title
                                             // among titles: each has its own stride.
                                             let step = (tab.pin != nil ? Metrics.pinWidth : width(in: geo.size.width)) + Metrics.tabGap
@@ -71,7 +71,7 @@ struct TabBar: View {
                                                 pill: pill,
                                                 close: { browser.close(tab) }
                                             )
-                                            .modifier(Carried(index: index, count: browser.tabs.count, step: step, vertical: false, space: "strip") {
+                                            .modifier(Carried(index: index, count: browser.rowTabs.count, step: step, vertical: false, space: "strip") {
                                                 browser.move(tab, to: $0)
                                             })
                                             .id(tab.id)
@@ -194,9 +194,10 @@ struct TabBar: View {
             let row = space.id == browser.spaceID
                 ? Parked(tabs: browser.tabs, active: browser.activeID)
                 : browser.parked[space.id] ?? Parked(tabs: [], active: nil)
-            let each = width(in: strip, pinned: row.tabs.filter { $0.pin != nil }.count, count: row.tabs.count)
+            let shown = row.tabs.filter { $0.bookmark == nil }
+            let each = width(in: strip, pinned: shown.filter { $0.pin != nil }.count, count: shown.count)
             HStack(spacing: Metrics.tabGap) {
-                ForEach(row.tabs) { tab in
+                ForEach(shown) { tab in
                     TabPill(
                         browser: browser,
                         prefs: browser.prefs,
@@ -242,10 +243,11 @@ struct TabBar: View {
     /// field's width for a tab being edited, which grows to take it.
     private func content(in strip: CGFloat) -> CGFloat {
         let each = width(in: strip)
-        let pinned = CGFloat(browser.pinnedCount)
-        let loose = CGFloat(browser.tabs.count) - pinned
+        let row = browser.rowTabs
+        let pinned = CGFloat(row.filter { $0.pin != nil }.count)
+        let loose = CGFloat(row.count) - pinned
         var total = pinned * Metrics.pinWidth + loose * each
-            + CGFloat(max(0, browser.tabs.count - 1)) * Metrics.tabGap
+            + CGFloat(max(0, row.count - 1)) * Metrics.tabGap
         if let id = browser.editingTab, let tab = browser.tabs.first(where: { $0.id == id }) {
             total += min(340, strip - Metrics.lights - 12) - (tab.pin != nil ? Metrics.pinWidth : each)
         }
@@ -269,7 +271,8 @@ struct TabBar: View {
     /// mark and its air. Past that, the run scrolls. The pinned squares take
     /// their room off the top.
     private func width(in strip: CGFloat) -> CGFloat {
-        width(in: strip, pinned: browser.pinnedCount, count: browser.tabs.count)
+        let row = browser.rowTabs
+        return width(in: strip, pinned: row.filter { $0.pin != nil }.count, count: row.count)
     }
 
     private func width(in strip: CGFloat, pinned pins: Int, count: Int) -> CGFloat {

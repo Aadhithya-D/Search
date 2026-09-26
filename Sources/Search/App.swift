@@ -119,7 +119,7 @@ struct SearchApp: App {
                 if let tab = browser.active {
                     if tab.pin == nil {
                         Button("Pin Tab") { browser.pin(tab) }
-                            .disabled(tab.isBlank)
+                            .disabled(tab.isBlank || tab.bookmark != nil)
                     } else {
                         Button("Change Letter") { browser.editLetter(tab) }
                         Button("Unpin Tab") { browser.unpin(tab) }
@@ -920,7 +920,7 @@ struct ContentView: View {
             if number == 0 {
                 browser.resetZoom()
             } else {
-                browser.select(index: number == 9 ? browser.tabs.count - 1 : number - 1)
+                browser.select(index: number == 9 ? browser.rowTabs.count - 1 : number - 1)
             }
             return true
         }
