@@ -59,9 +59,16 @@ final class FormRelay: NSObject, WKScriptMessageHandler {
     /// the entitlement, as releases are, this is on, and Search carries out
     /// the sites' requests itself (see Passkeys.swift).
     static var passkeysOffered: Bool {
-        get { Store.settings.bool(forKey: "passkeys") }
+        // Fork: a build without the entitlement never offers them, whatever
+        // the switch says — the setting is shared with the signed build, and
+        // carried over as on it sent every site into a ceremony macOS refuses
+        // at once (AuthorizationError 1004). Sites then offer their other
+        // ways in: a code, a password.
+        get { entitled && Store.settings.bool(forKey: "passkeys") }
         set { Store.settings.set(newValue, forKey: "passkeys") }
     }
+
+    private static let entitled = Preferences.entitledToPasskeys
 
     /// Only the passkey object goes. navigator.credentials itself stays: sites
     /// use it for stored passwords too, and that half still works.
