@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import Combine
+import UniformTypeIdentifiers
 
 // Everything the window knows: which tabs exist, which one is showing, and
 // whether the address field is up. Small enough to read in one sitting, which
@@ -49,13 +50,42 @@ final class Browser: NSObject, ObservableObject {
 
     /// ⇧⌘B. The page you are on, at the end of the list.
     func bookmarkCurrent() {
-        guard let tab = active, let url = tab.address else { return }
-        guard !bookmarks.contains(url) else {
-            announce("Already a bookmark")
+        guard let tab = active else { return }
+        file(tab, into: nil)
+    }
+
+    /// The page, filed into a folder — or at the top of the list when the
+    /// folder is nil. One already kept is moved, so a drag onto a folder
+    /// takes it out of the general list.
+    func file(_ tab: Tab, into folder: Bookmark.ID?) {
+        guard let url = tab.address, !tab.isBlank else { return }
+        announce(bookmarks.file(url, title: tab.title, into: folder))
+    }
+
+    /// A Netscape bookmarks file, as Chrome, Safari, and Firefox export one.
+    func importBookmarksHTML() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.html]
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Import"
+        panel.message = "A bookmarks file exported from Chrome, Safari, or Firefox."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let text = (try? String(contentsOf: url, encoding: .utf8))
+            ?? (try? String(contentsOf: url, encoding: .utf16))
+            ?? (try? String(contentsOf: url, encoding: .isoLatin1))
+        guard let text else {
+            announce("Couldn't read that file")
             return
         }
-        bookmarks.add(url, title: tab.title)
-        announce("Bookmarked")
+        let found = BookmarkHTML.read(text)
+        let count = Bookmarks.count(found)
+        guard !found.isEmpty, count > 0 else {
+            announce("No bookmarks in that file")
+            return
+        }
+        let name = url.deletingPathExtension().lastPathComponent
+        bookmarks.take(found, from: name)
+        announce(count == 1 ? "1 bookmark from \(name)" : "\(count) bookmarks from \(name)")
     }
 
     /// Another browser's bookmarks, folders and all — and, behind them, the

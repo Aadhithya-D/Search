@@ -1,4 +1,32 @@
 import SwiftUI
+import UniformTypeIdentifiers
+
+/// Where a tab drag is hovering in the bookmarks, so the folder under the
+/// hand can light up without the column redrawing the tab it is carrying.
+@MainActor
+private final class DropAim: ObservableObject {
+    struct Mark: Equatable {
+        var folder: Bookmark.ID?
+        var root = false
+    }
+
+    @Published var mark = Mark()
+}
+
+/// A bookmark row's place in the column, so a tab let go over it can be filed
+/// there. A nil id is the list itself.
+private struct MarkSpot: Equatable {
+    var id: Bookmark.ID?
+    var folder: Bool
+    var rect: CGRect
+}
+
+private struct MarkSpotsKey: PreferenceKey {
+    static var defaultValue: [MarkSpot] = []
+    static func reduce(value: inout [MarkSpot], nextValue: () -> [MarkSpot]) {
+        value.append(contentsOf: nextValue())
+    }
+}
 
 /// The column down the left: pinned pages, then bookmark folders, then the
 /// tabs in a section of their own.
@@ -32,6 +60,15 @@ struct SideBar: View {
     /// Folders the column has opened. The tree is the same in every space,
     /// so opening one stays open while the spaces slide past each other.
     @State private var foldersOpen: Set<Bookmark.ID> = []
+    /// Bookmark rows, measured in the column, for a tab dropped onto one.
+    @State private var spots: [MarkSpot] = []
+    @State private var overSection = false
+    /// Held as state, not observed here: the folder lighting up must not
+    /// redraw the tab under the hand, or the drag would be dropped.
+    @State private var aim = DropAim()
+    /// The neighbouring space's list is drawn too, and must not light up
+    /// when this space's drag passes a folder.
+    @State private var idleAim = DropAim()
 
     fileprivate static let row: CGFloat = 28
     fileprivate static let gap: CGFloat = 2
@@ -104,6 +141,16 @@ struct SideBar: View {
         .animation(Motion.glide, value: browser.editingTab)
         .animation(Motion.settle, value: browser.tabs.map(\.id))
         .animation(Motion.settle, value: browser.pinnedCount)
+        .coordinateSpace(name: "column")
+        .onPreferenceChange(MarkSpotsKey.self) { spots = $0 }
+        .onChange(of: bookmarks.reveal) { _, id in
+            guard let id else { return }
+            var open = foldersOpen
+            open.insert(id)
+            for parent in bookmarks.ancestors(of: id) { open.insert(parent) }
+            withAnimation(Motion.quick) { foldersOpen = open }
+            DispatchQueue.main.async { bookmarks.reveal = nil }
+        }
     }
 
     /// The column's edge: pull it to make the column wider or narrower,
@@ -246,7 +293,7 @@ struct SideBar: View {
             }
             section("Bookmarks")
             SideMarks(
-                browser: browser, bookmarks: bookmarks, open: $foldersOpen,
+                browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: idleAim,
                 tree: bookmarks.nodes(in: space),
                 tabs: row.tabs, active: row.active
             )
@@ -407,6 +454,48 @@ struct SideBar: View {
             }
     }
 
+    // MARK: - filing a tab into the bookmarks
+
+    /// The folder under the pointer, or the list itself when the pointer is
+    /// over the bookmarks but not inside a folder.
+    private func mark(at point: CGPoint) -> DropAim.Mark {
+        let hits = spots.filter { $0.rect.contains(point) }
+        // A folder sitting in the list is inside the list's own rectangle, so
+        // the folder wins even when the two are the same size.
+        let folders = hits.filter(\.folder)
+        if let folder = folders.min(by: { Self.area($0.rect) < Self.area($1.rect) }), let id = folder.id {
+            return DropAim.Mark(folder: id)
+        }
+        if hits.contains(where: { $0.id == nil }) { return DropAim.Mark(root: true) }
+        return DropAim.Mark()
+    }
+
+    private static func area(_ rect: CGRect) -> CGFloat { rect.width * rect.height }
+
+    private func filing(_ tab: Tab) -> some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .named("column"))
+            .onChanged { value in
+                let next = mark(at: value.location)
+                if next != aim.mark { aim.mark = next }
+            }
+            .onEnded { value in
+                let next = mark(at: value.location)
+                aim.mark = DropAim.Mark()
+                guard next.folder != nil || next.root, let url = tab.address, !tab.isBlank else { return }
+                browser.announce(bookmarks.file(url, title: tab.title, into: next.folder))
+            }
+    }
+
+    /// A bookmark let go on the Bookmarks label goes back to the top of the list.
+    private func relocate(_ providers: [NSItemProvider], into folder: Bookmark.ID?) -> Bool {
+        guard let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return false }
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let text = object as? String, let id = UUID(uuidString: text) else { return }
+            DispatchQueue.main.async { self.bookmarks.move(id, into: folder) }
+        }
+        return true
+    }
+
     // MARK: - the rows
 
     private var loose: some View {
@@ -428,6 +517,10 @@ struct SideBar: View {
                 .modifier(Carried(index: index, count: looseTabs.count, step: step, vertical: true, space: "rows") {
                     browser.move(tab, to: $0 + browser.pinnedCount)
                 })
+                // The reorder above keeps the row under the hand. This one
+                // only watches where the hand is, and files the page when
+                // that place is a bookmark folder.
+                .simultaneousGesture(filing(tab))
             }
         }
         .coordinateSpace(name: "rows")
@@ -437,14 +530,15 @@ struct SideBar: View {
     /// once the column is full; the pins stay above them.
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
-            section("Bookmarks")
+            self.section("Bookmarks")
+                .onDrop(of: [.text], isTargeted: $overSection) { providers in relocate(providers, into: nil) }
             Quiet(icon: "folder.badge.plus", title: "New Folder", height: SideBar.row) {
                 Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
                     let made = bookmarks.makeFolder(title)
                     foldersOpen.insert(made.id)
                 }
             }
-            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen)
+            SideMarks(browser: browser, bookmarks: bookmarks, open: $foldersOpen, aim: aim)
             section("Tabs")
             newTab
             loose
@@ -492,26 +586,42 @@ private struct SideMarks: View {
     @ObservedObject var browser: Browser
     @ObservedObject var bookmarks: Bookmarks
     @Binding var open: Set<Bookmark.ID>
+    @ObservedObject var aim: DropAim
     /// Another space's list and pages, while that space is sliding past.
     /// Absent, this is the space on screen.
     var tree: [Bookmark]? = nil
     var tabs: [Tab]? = nil
     var active: Tab.ID? = nil
 
+    @State private var overEmpty = false
+
     private var shown: [Bookmark] { tree ?? bookmarks.roots }
+    /// The list sliding past belongs to another space. It is only a picture.
+    private var live: Bool { tree == nil }
 
     var body: some View {
-        if shown.isEmpty {
-            Text("No bookmarks yet")
-                .font(.system(size: 12))
-                .foregroundStyle(Palette.faint)
-                .padding(.leading, 8)
-                .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
-        } else {
-            VStack(alignment: .leading, spacing: SideBar.gap) {
-                rows(shown, depth: 0)
+        Group {
+            if shown.isEmpty {
+                Text("No bookmarks yet")
+                    .font(.system(size: 12))
+                    .foregroundStyle(Palette.faint)
+                    .padding(.leading, 8)
+                    .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
+                    .onDrop(of: [.text], isTargeted: $overEmpty) { providers in
+                        guard live else { return false }
+                        return take(providers, into: nil, before: nil)
+                    }
+            } else {
+                VStack(alignment: .leading, spacing: SideBar.gap) {
+                    rows(shown, depth: 0)
+                }
             }
         }
+        .background { spot(nil, folder: false) }
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(live && aim.mark.root ? Palette.hover : Color.clear)
+        )
     }
 
     /// How many rows are on screen, folders closed counted as one. The
@@ -572,9 +682,10 @@ private struct SideMarks: View {
             }
         }
         .padding(opened ? 2 : 0)
+        .background { spot(node.id, folder: true) }
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(opened ? Palette.hover : Color.clear)
+                .fill(live && aim.mark.folder == node.id ? Palette.wash : (opened ? Palette.hover : Color.clear))
         )
     }
 
@@ -602,21 +713,67 @@ private struct SideMarks: View {
         depth: Int,
         folder: Bool,
         opened: Bool,
-        live: Bool,
+        live rowLive: Bool,
         close: (() -> Void)?,
         newFolder: (() -> Void)?,
         act: @escaping () -> Void
     ) -> some View {
-        Line(
-            node: node, depth: depth, folder: folder, opened: opened, live: live,
-            act: act, close: close, newFolder: newFolder
+        let targets = live
+            ? Bookmarks.folders(bookmarks.roots).filter { !Bookmarks.holds($0.node.id, node) }
+            : []
+        return Line(
+            node: node, depth: depth, folder: folder, opened: opened, live: rowLive,
+            lit: folder && live && aim.mark.folder == node.id,
+            act: act, close: close, newFolder: newFolder,
+            addPage: folder && live ? { if let tab = browser.active { browser.file(tab, into: node.id) } } : nil,
+            canAdd: browser.active?.isBlank == false,
+            moveTargets: targets,
+            moveTo: { bookmarks.move(node.id, into: $0) }
         ) {
             if let close { close() }
             bookmarks.remove(node.id)
         } openNew: {
             guard let text = node.url, let url = URL(string: text) else { return }
             _ = browser.open(url, foreground: true)
+        } dropped: { providers in
+            take(providers, into: folder ? node.id : nil, before: folder ? nil : node.id)
         }
+    }
+
+    /// A bookmark row's place, in the column's own coordinates. The page
+    /// sliding past reports nothing, or a drop there would file into this space.
+    @ViewBuilder
+    private func spot(_ id: Bookmark.ID?, folder: Bool) -> some View {
+        if live {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: MarkSpotsKey.self,
+                    value: [MarkSpot(id: id, folder: folder, rect: geo.frame(in: .named("column")))]
+                )
+            }
+        }
+    }
+
+    /// A bookmark dropped on a folder is filed into it; one dropped on a page
+    /// is placed just before that page. A tab dragged up from the list is not
+    /// this drop — that gesture files the page on its own.
+    private func take(_ providers: [NSItemProvider], into folder: Bookmark.ID?, before sibling: Bookmark.ID?) -> Bool {
+        guard live, let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return false }
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let text = object as? String, let id = UUID(uuidString: text) else { return }
+            DispatchQueue.main.async {
+                if let sibling {
+                    self.bookmarks.move(id, before: sibling)
+                } else {
+                    self.bookmarks.move(id, into: folder)
+                    if let folder {
+                        self.open.insert(folder)
+                        for parent in self.bookmarks.ancestors(of: folder) { self.open.insert(parent) }
+                    }
+                }
+            }
+        }
+        return true
     }
 
     private func indent(_ depth: Int) -> CGFloat { CGFloat(depth) * 14 }
@@ -627,13 +784,20 @@ private struct SideMarks: View {
         let folder: Bool
         let opened: Bool
         let live: Bool
+        let lit: Bool
         let act: () -> Void
         let close: (() -> Void)?
         let newFolder: (() -> Void)?
+        let addPage: (() -> Void)?
+        let canAdd: Bool
+        let moveTargets: [(node: Bookmark, depth: Int)]
+        let moveTo: (Bookmark.ID?) -> Void
         let remove: () -> Void
         let openNew: () -> Void
+        let dropped: ([NSItemProvider]) -> Bool
 
         @State private var hovering = false
+        @State private var over = false
 
         /// The same quiet as a tab you are not on. A folder stays readable;
         /// a page does not, until it is the one open.
@@ -676,11 +840,13 @@ private struct SideMarks: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(live ? Palette.wash : (hovering && !opened ? Palette.hover : Color.clear))
+                    .fill(live || lit || over ? Palette.wash : (hovering && !opened ? Palette.hover : Color.clear))
             )
             .contentShape(Rectangle())
             .onTapGesture(perform: act)
             .onHover { hovering = $0 }
+            .onDrag { NSItemProvider(object: node.id.uuidString as NSString) }
+            .onDrop(of: [.text], isTargeted: $over, perform: dropped)
             .overlay(alignment: .trailing) {
                 // A real view, not a SwiftUI button: the row's own tap was
                 // winning the click, so the cross reopened the page it had
@@ -710,8 +876,23 @@ private struct SideMarks: View {
                         Button("Close", action: close)
                     }
                 }
+                if let addPage {
+                    Button("Add This Page", action: addPage)
+                        .disabled(!canAdd)
+                }
                 if let newFolder {
                     Button("New Folder", action: newFolder)
+                }
+                Menu("Move to") {
+                    Button("Top Level") { moveTo(nil) }
+                    if !moveTargets.isEmpty {
+                        Divider()
+                        ForEach(moveTargets, id: \.node.id) { target in
+                            Button(String(repeating: "   ", count: target.depth) + target.node.title) {
+                                moveTo(target.node.id)
+                            }
+                        }
+                    }
                 }
                 Button("Remove", role: .destructive, action: remove)
             }

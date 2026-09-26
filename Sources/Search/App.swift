@@ -151,6 +151,7 @@ struct SearchApp: App {
                     Ask.name("New Folder", placeholder: "Name", confirm: "Create") { browser.bookmarks.makeFolder($0) }
                 }
                 Button("Show Bookmarks…") { browser.bookmarking = true }
+                Button("Import HTML…") { browser.importBookmarksHTML() }
                 Toggle("Show Bookmarks Bar", isOn: Binding(
                     get: { browser.prefs.bookmarksBar },
                     set: { on in withAnimation(Motion.glide) { browser.prefs.bookmarksBar = on } }
