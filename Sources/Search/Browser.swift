@@ -1631,6 +1631,8 @@ final class Browser: NSObject, ObservableObject {
             spaceID = last
             Spaces.current = last
         }
+        // Fork: the space's own bookmarks (Fork/BookmarksPerSpace.swift).
+        if Browsers.front == nil || Browsers.front === self { bookmarks.use(spaceID) }
         restoreSession()
         if prefs.usesSpaces { preloadSpaces() }
     }

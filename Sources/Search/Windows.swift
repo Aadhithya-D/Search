@@ -53,6 +53,8 @@ final class Front: ObservableObject {
     func set(_ browser: Browser?) {
         guard browser !== self.browser else { return }
         self.browser = browser
+        // Fork: bookmarks are the front window's space's (Fork/BookmarksPerSpace.swift).
+        if let browser { browser.bookmarks.use(browser.spaceID) }
         relay = browser?.objectWillChange.sink { [weak self] _ in self?.objectWillChange.send() }
     }
 }
