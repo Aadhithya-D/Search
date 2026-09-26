@@ -880,6 +880,19 @@ struct TabMenu: View {
             browser.duplicate()
         }
         .disabled(tab.isBlank)
+        Menu("Add to Bookmarks") {
+            Button("Bookmarks") { browser.file(tab, into: nil) }
+            let folders = Bookmarks.folders(browser.bookmarks.roots)
+            if !folders.isEmpty {
+                Divider()
+                ForEach(folders, id: \.node.id) { target in
+                    Button(String(repeating: "   ", count: target.depth) + target.node.title) {
+                        browser.file(tab, into: target.node.id)
+                    }
+                }
+            }
+        }
+        .disabled(tab.isBlank || tab.address == nil)
         // The card a click on the tab you are on shows under its address.
         Button("Site Information…") {
             if browser.activeID != tab.id { browser.select(tab) }

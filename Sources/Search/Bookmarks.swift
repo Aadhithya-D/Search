@@ -45,6 +45,9 @@ final class Bookmarks: ObservableObject {
     /// Every address kept, for `contains` — asked on every redraw of the
     /// button, which fills in on a page that is kept.
     private var kept: Set<String> = []
+    /// A folder a page was just filed into, so the column can open it and
+    /// show where the page landed (Fork/BookmarkFolders.swift).
+    @Published var reveal: Bookmark.ID?
 
     init() { load() }
 
@@ -195,7 +198,7 @@ final class Bookmarks: ObservableObject {
         return walk(roots) ?? []
     }
 
-    private static func detach(_ id: Bookmark.ID, from nodes: inout [Bookmark]) -> Bookmark? {
+    static func detach(_ id: Bookmark.ID, from nodes: inout [Bookmark]) -> Bookmark? {
         for i in nodes.indices {
             if nodes[i].id == id { return nodes.remove(at: i) }
             guard nodes[i].children != nil else { continue }
@@ -212,7 +215,7 @@ final class Bookmarks: ObservableObject {
     /// clamped to what is there, or at the end. False when there is no such
     /// folder.
     @discardableResult
-    private static func place(_ node: Bookmark, in id: Bookmark.ID?, at index: Int?, nodes: inout [Bookmark]) -> Bool {
+    static func place(_ node: Bookmark, in id: Bookmark.ID?, at index: Int?, nodes: inout [Bookmark]) -> Bool {
         guard let id else {
             nodes.insert(node, at: min(max(index ?? nodes.count, 0), nodes.count))
             return true
@@ -235,7 +238,7 @@ final class Bookmarks: ObservableObject {
 
     /// `id` is `node` itself, or somewhere inside it — also used by the
     /// outline to keep a folder out of its own "move to" list.
-    fileprivate static func holds(_ id: Bookmark.ID, _ node: Bookmark) -> Bool {
+    static func holds(_ id: Bookmark.ID, _ node: Bookmark) -> Bool {
         node.id == id || (node.children ?? []).contains { holds(id, $0) }
     }
 
@@ -971,6 +974,8 @@ struct BookmarksDropdown: View {
                 Foot(browser.pageKept ? "bookmark.fill" : "bookmark", browser.pageKept ? "Edit This Bookmark\u{2026}" : "Add This Page") {
                     browser.bookmarkCurrent()
                 }
+                // Fork: a folder made from the list (Fork/BookmarkFolders.swift).
+                Foot("folder.badge.plus", "New Folder\u{2026}") { bookmarks.askNewFolder(in: nil) }
                 Foot(nil, "Manage Bookmarks…") { browser.bookmarking = true }
             }
             .padding(6)

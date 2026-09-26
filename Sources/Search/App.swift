@@ -177,6 +177,8 @@ struct SearchApp: App {
                 Button(browser.pageKept ? "Edit Bookmark\u{2026}" : "Add This Page") { browser.bookmarkCurrent() }
                     .shortcut("bookmarks.add")
                     .disabled(browser.active?.isBlank ?? true)
+                // Fork: a folder from the menu (Fork/BookmarkFolders.swift).
+                Button("New Folder\u{2026}") { browser.bookmarks.askNewFolder(in: nil) }
                 Button("Show Bookmarks…") { browser.bookmarking = true }
                     .shortcut("bookmarks.show")
                 Toggle("Show Bookmarks Bar", isOn: Binding(
