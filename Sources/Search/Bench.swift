@@ -1153,6 +1153,36 @@ final class Bench {
                 "active": browser.active?.address?.host() ?? "",
             ])
 
+        case "profiles":
+            // Fork: another browser's profiles and what each holds, read from
+            // copies; with a path, the import sheet drawn to a PNG. Nothing
+            // is imported, and the other browser's key is not asked for.
+            let name = request["browser"] as? String ?? ""
+            guard let source = Chromium.known.first(where: { $0.name.lowercased() == name.lowercased() })
+            else { answer(["error": "no browser called \(name)"]); return }
+            let list = Chromium.profiles(of: source).map { profile -> [String: Any] in
+                let one = profile.only
+                return [
+                    "folder": profile.folder, "name": profile.name,
+                    "bookmarks": Bookmarks.count(Chromium.bookmarks(in: one)),
+                    "places": Chromium.places(in: one).count,
+                ]
+            }
+            guard let path = request["path"] as? String else { answer(["profiles": list]); return }
+            let host = NSHostingView(rootView: ProfileImportView(browser: browser, preset: source) {}.background(Palette.ground))
+            host.frame = NSRect(origin: .zero, size: host.fittingSize)
+            let window = NSWindow(contentRect: host.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            window.appearance = NSApp.effectiveAppearance
+            window.contentView = host
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                host.frame = NSRect(origin: .zero, size: host.fittingSize)
+                guard let picture = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { answer(["error": "nothing drawn"]); return }
+                host.cacheDisplay(in: host.bounds, to: picture)
+                try? picture.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+                answer(["profiles": list, "saved": path])
+                window.contentView = nil
+            }
+
         case "site":
             // The site card for the tab on screen, or one step in on its
             // connection, drawn off screen (see SiteCard.swift).

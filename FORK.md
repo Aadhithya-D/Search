@@ -37,6 +37,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 11 | The column can sit on the right | — | `Preferences.sideRight` and Settings; page, peek, hidden panel, column edge and Fold follow the side | #340, #314 |
 | 12 | A folded column shows a handle on its edge | `FoldedColumn.swift` | `Fold` tracks `edgeNear` and overlays `SideHandle` | #256, #243 |
 | 13 | The folded column floats as a card, lights inside it | `FoldedColumn.swift` | Fold styles the peeking column; `Lights.nudge` | #252 |
+| 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of
 26 Sep 2026. Recheck them before each sync; merged ones are the ones to

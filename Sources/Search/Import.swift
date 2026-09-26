@@ -25,8 +25,11 @@ enum Chromium {
         let folder: String
         let service: String
         let account: String
+        /// Fork: one profile's folder inside `root`, when only that profile
+        /// is wanted (Fork/ProfileImport.swift). Nil is every profile.
+        var profile: String? = nil
 
-        var id: String { name }
+        var id: String { profile.map { "\(name)/\($0)" } ?? name }
 
         var root: URL {
             FileManager.default
@@ -36,7 +39,12 @@ enum Chromium {
 
         /// every profile's file, each one directly inside its profile folder.
         var files: [URL] {
-            ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? [])
+            if let profile {
+                let folder = root.appendingPathComponent(profile, isDirectory: true)
+                guard FileManager.default.fileExists(atPath: folder.path) else { return [] }
+                return [folder.appendingPathComponent("Login Data")]
+            }
+            return ((try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? [])
                 .map { $0.appendingPathComponent("Login Data") }
                 .filter { FileManager.default.fileExists(atPath: $0.path) }
         }
@@ -44,6 +52,7 @@ enum Chromium {
 
     static let known: [Source] = [
         Source(name: "Dia", folder: "Dia/User Data", service: "Dia Safe Storage", account: "Dia"),
+        Source(name: "Aside", folder: "Aside", service: "Aside Safe Storage", account: "Aside"),
         Source(name: "Chrome", folder: "Google/Chrome", service: "Chrome Safe Storage", account: "Chrome"),
         Source(name: "Arc", folder: "Arc/User Data", service: "Arc Safe Storage", account: "Arc"),
         Source(name: "Brave", folder: "BraveSoftware/Brave-Browser", service: "Brave Safe Storage", account: "Brave"),
@@ -68,8 +77,10 @@ enum Chromium {
         var never: [String]
     }
 
-    static func read(_ source: Source) throws -> Found {
-        guard let passphrase = safeStorage(source) else { throw Trouble.noPassphrase }
+    /// `passphrase`: the browser's key, already asked for once, so reading
+    /// several of its profiles asks macOS only the first time.
+    static func read(_ source: Source, passphrase known: String? = nil) throws -> Found {
+        guard let passphrase = known ?? safeStorage(source) else { throw Trouble.noPassphrase }
         let key = stretch(passphrase)
 
         var logins: [Login] = []
@@ -254,7 +265,7 @@ enum Chromium {
 
     // MARK: - the key
 
-    private static func safeStorage(_ source: Source) -> String? {
+    static func safeStorage(_ source: Source) -> String? {
         var out: CFTypeRef?
         let status = SecItemCopyMatching([
             kSecClass as String: kSecClassGenericPassword,
@@ -271,7 +282,7 @@ enum Chromium {
 
     /// Chromium's own recipe, unchanged for a decade: PBKDF2 over SHA-1, the
     /// salt "saltysalt", 1003 rounds, sixteen bytes out.
-    private static func stretch(_ passphrase: String) -> [UInt8] {
+    static func stretch(_ passphrase: String) -> [UInt8] {
         var key = [UInt8](repeating: 0, count: 16)
         let salt = Array("saltysalt".utf8)
         let pass = Array(passphrase.utf8)

@@ -23,6 +23,8 @@
     ./bench little URL|keep|close      a small window for a link (made unseen), kept into the row, or closed
     ./bench site PATH [security|controls] the site card for the tab on screen, drawn to a PNG
                                        (controls: the whole menu behind the column address's sliders)
+    ./bench profiles BROWSER [PATH]    another browser's profiles and what each holds, read from copies;
+                                       PATH: the import sheet, drawn (File › Import from Another Browser…)
     ./bench ext-add ID|LINK [--yes]    install from the Chrome Web Store (--yes only in a --test run)
     ./bench ext-folder PATH [--yes]    install an unpacked extension
     ./bench ext-press ID               press its button
@@ -206,6 +208,10 @@ def main(argv):
     elif verb == "little":
         if len(args) != 1: sys.exit("usage: bench little URL|keep|close")
         request["what"] = args[0]
+    elif verb == "profiles":
+        if not 1 <= len(args) <= 2: sys.exit("usage: bench profiles BROWSER [PATH]")
+        request["browser"] = args[0]
+        if len(args) == 2: request["path"] = os.path.abspath(args[1])
     elif verb == "site":
         if not 1 <= len(args) <= 2: sys.exit("usage: bench site PATH [security|controls]")
         request["path"] = os.path.abspath(args[0])

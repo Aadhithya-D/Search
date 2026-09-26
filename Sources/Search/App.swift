@@ -30,6 +30,8 @@ struct SearchApp: App {
                 Divider()
                 Button("Open Address…") { browser.edit() }
                     .keyboardShortcut("l")
+                // Fork: Fork/ProfileImport.swift.
+                Button("Import from Another Browser…") { browser.askToImportProfiles() }
                 Divider()
                 Button("Close Tab") { if let tab = browser.active { browser.close(tab) } }
                     .keyboardShortcut("w")
