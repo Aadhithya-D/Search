@@ -33,6 +33,18 @@ final class Lights: NSObject {
         kept.values.forEach { $0.place() }
     }
 
+    /// How far the buttons stand in from where the row puts them: the
+    /// column's inset while it floats over the page as a card of its own,
+    /// so they sit inside the card as they sit in the column docked,
+    /// rather than on its top edge. Nothing otherwise.
+    static private(set) var nudge: CGSize = .zero
+
+    static func nudge(_ by: CGSize) {
+        guard by != nudge else { return }
+        nudge = by
+        kept.values.forEach { $0.place() }
+    }
+
     private static var kept: [ObjectIdentifier: Lights] = [:]
 
     /// Starts looking after a window's lights, once. `moved` hears each time
@@ -102,7 +114,9 @@ final class Lights: NSObject {
 
         // A title bar as tall as the row across the top, so the buttons sit
         // in the middle of it.
-        let height = Lights.band
+        // Taller by the nudge, so buttons moved down stay inside it and
+        // still take their clicks.
+        let height = Lights.band + Lights.nudge.height
         var frame = container.frame
         if frame.height != height || frame.maxY != window.frame.height {
             frame.size.height = height
@@ -121,8 +135,9 @@ final class Lights: NSObject {
         for (index, button) in buttons.enumerated() {
             let size = button.frame.size
             let origin = NSPoint(
-                x: centreX() - size.width / 2 + CGFloat(index) * spacing,
-                y: bar.bounds.height - Lights.centre.y - size.height / 2
+                // Fork: nudged into the floating card (Fork/FoldedColumn.swift).
+                x: centreX() + Lights.nudge.width - size.width / 2 + CGFloat(index) * spacing,
+                y: bar.bounds.height - Lights.centre.y - Lights.nudge.height - size.height / 2
             )
             if button.frame.origin != origin { button.setFrameOrigin(origin) }
         }

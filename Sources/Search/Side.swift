@@ -10,6 +10,9 @@ struct SideBar: View {
     @ObservedObject var browser: Browser
     @ObservedObject var prefs: Preferences
     @ObservedObject var bookmarks: Bookmarks
+    /// Out over the page from the window's edge, as a card of its own
+    /// rather than the column beside the page (Fork/FoldedColumn.swift).
+    var floating = false
 
     @Environment(\.colorScheme) private var windowScheme
     @Namespace private var pill
@@ -124,7 +127,7 @@ struct SideBar: View {
                 Grain()
             }
         }
-        .overlay(alignment: innerEdge) { edge }
+        .overlay(alignment: innerEdge) { if !floating { edge } }
         // A pastel worn on a dark window takes dark ink, and the other way
         // round: the column is drawn in its colour's own light or dark.
         .environment(\.colorScheme, browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light)
