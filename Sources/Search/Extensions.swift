@@ -1296,7 +1296,7 @@ final class Extensions: NSObject, ObservableObject {
     /// else the puzzle button — whichever is in the window now.
     func anchor(for id: String) -> NSView? {
         let own = anchors[id]?.view
-        return own?.window != nil ? own : anchors[Extensions.menuAnchor]?.view
+        return own?.window != nil ? own : fallbackAnchor  // Fork: Fork/ExtensionsInline.swift
     }
 
     /// The page the button's popup is now: one the extension set for this
@@ -1752,7 +1752,7 @@ private struct ExtensionButtons: View {
 
 /// An extension's icon with its badge in the corner.
 @available(macOS 15.4, *)
-private struct ExtensionIcon: View {
+struct ExtensionIcon: View {
     let button: Extensions.Button
     let size: CGFloat
 
@@ -1789,7 +1789,7 @@ private struct ExtensionIcon: View {
 
 /// What a right-click on an extension offers, in the row and in the list.
 @available(macOS 15.4, *)
-private struct ExtensionActions: View {
+struct ExtensionActions: View {
     let id: String
     let name: String
     let extensions: Extensions

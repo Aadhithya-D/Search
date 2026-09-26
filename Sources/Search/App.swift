@@ -465,6 +465,21 @@ struct ContentView: View {
             SplitStage(browser: browser, corner: cards ? Metrics.cardRadius : 0)
         } else if let tab = browser.active {
             Page(tab: tab, corner: cards ? Metrics.cardRadius : 0)
+                // Fork: in the column's layout, a blank tab keeps its field
+                // in the middle of the page, and a click on the page puts
+                // away an address being typed in the column (Fork/SideAddress.swift).
+                .overlay {
+                    if browser.prefs.sidebar, tab.isBlank {
+                        Omnibox(browser: browser, over: false)
+                    }
+                }
+                .overlay {
+                    if browser.prefs.sidebar, browser.editing, !tab.isBlank {
+                        Color.clear
+                            .contentShape(Rectangle())
+                            .onTapGesture { browser.dismiss() }
+                    }
+                }
                 .overlay {
                     if browser.prefs.showsLinks { LinkBubble(status: browser.linkStatus) }
                 }
@@ -589,7 +604,9 @@ struct ContentView: View {
         // SplitStage owns the field whenever Split View is enabled, including
         // an ordinary tab that is not currently paired. Drawing it here too
         // leaves two offset address fields on a blank tab.
-        if browser.fieldShowing, !browser.prefs.splitView {
+        // Fork: the column has its own address (Fork/SideAddress.swift), and
+        // a blank tab's field there stands in the page, inside its card.
+        if browser.fieldShowing, !browser.prefs.splitView, !browser.prefs.sidebar {
             Omnibox(browser: browser, over: !(browser.active?.isBlank ?? true))
                 // Centred on the page, not on the window. The column of tabs
                 // is not what the field is standing over, and dimming it along
@@ -687,10 +704,12 @@ struct ContentView: View {
             // there is to watch.
             .animation(browser.fieldShowing ? Motion.settle : Motion.quick, value: browser.fieldShowing)
             .background(WindowSetup { window = $0; dress($0) })
-            .onChange(of: browser.prefs.sidebar) { _, side in
+            .onChange(of: browser.prefs.sidebar) { _, on in
                 // The ground the page's card sits on, or the page's own.
                 // Fork: the space's colour (Fork/ColumnColour.swift).
                 paintChrome(window)
+                // Fork: the lights sit in the column's first row (Fork/SideAddress.swift).
+                Lights.retarget(band: on ? SideBar.topRow : Metrics.strip)
                 DispatchQueue.main.async { Lights.refresh(window); measureLights() }
             }
             .onChange(of: browser.prefs.sidePosition) { _, _ in
@@ -1012,6 +1031,8 @@ struct ContentView: View {
         // height, in both modes, without a toolbar's rounder corners — see
         // Lights.swift. The column's first row is the strip's height too, so
         // its three doors sit on the lights' line.
+        // Fork: the lights sit in the column's first row (Fork/SideAddress.swift).
+        Lights.retarget(band: browser.prefs.sidebar ? SideBar.topRow : Metrics.strip)
         Lights.keep(window, centreX: {
             browser.prefs.sidebar && browser.prefs.sidePosition == .right
                 ? window.frame.width - browser.prefs.sideWidth + Lights.centre.x
