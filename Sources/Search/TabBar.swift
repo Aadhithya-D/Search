@@ -438,7 +438,7 @@ private struct TabPill: View {
         if compact {
             ZStack {
                 if tab.loading {
-                    Ring()
+                    ProgressRing(tab: tab)
                 } else {
                     Mark(icon: prefs.glyph == .icons ? tab.icon : nil, letter: tab.monogram, size: 15, dim: tab.asleep)
                 }
@@ -503,7 +503,7 @@ private struct TabPill: View {
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .transition(.opacity)
                     } else if tab.loading {
-                        Ring().transition(.opacity)
+                        ProgressRing(tab: tab).transition(.opacity)
                     }
                 }
                 .frame(width: editing || (speaker && !hovering) ? 0 : 15, height: 15)
