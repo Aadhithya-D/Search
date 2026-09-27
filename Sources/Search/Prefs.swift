@@ -320,8 +320,10 @@ final class Preferences: ObservableObject {
         glyph = store.string(forKey: "glyph").flatMap(Glyph.init) ?? .letters
         engine = store.string(forKey: "search.engine").flatMap(Engine.init) ?? .standard
         customEngine = store.string(forKey: "search.custom") ?? ""
-        keywords = store.data(forKey: "search.keywords")
-            .flatMap { try? JSONDecoder().decode([Keyword].self, from: $0) } ?? []
+        // Fork: with the fork's own keyword list, from before upstream had one
+        // (Fork/SearchKeywords.swift).
+        keywords = Preferences.withForkKeywords(store.data(forKey: "search.keywords")
+            .flatMap { try? JSONDecoder().decode([Keyword].self, from: $0) } ?? [])
         sleepsTabs = store.object(forKey: "tabs.sleep") as? Bool ?? true
         lazyTabs = store.bool(forKey: "tabs.lazy")
         showsReading = store.object(forKey: "tabs.reading") as? Bool ?? true

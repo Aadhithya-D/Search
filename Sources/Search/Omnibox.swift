@@ -59,9 +59,21 @@ struct Omnibox: View {
     }
 
     private var field: some View {
-        AddressField(browser: browser, prompt: browser.prefs.searchPrompt)
+        // Fork: the keyword's site before the field (Fork/SearchKeywords.swift).
+        let keyed = browser.searchAlias != nil
+        return HStack(spacing: keyed ? 6 : 0) {
+            if let name = browser.searchAlias?.name {
+                KeywordMark(name: name)
+            }
+            AddressField(
+                browser: browser,
+                prompt: keyed ? "Enter search terms" : browser.prefs.searchPrompt
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 22)
-            .padding(.horizontal, 22)
+        }
+        .padding(.leading, keyed ? 8 : 22)
+        .padding(.trailing, 22)
             .padding(.vertical, 14)
             .background {
                 ZStack {
@@ -293,13 +305,24 @@ struct AddressField: NSViewRepresentable {
         field.focusRingType = .none
         field.font = .systemFont(ofSize: point)
         field.textColor = Palette.NS.ink
+        field.alignment = .left
         field.lineBreakMode = .byTruncatingTail
+        field.cell?.alignment = .left
         field.cell?.usesSingleLineMode = true
         field.cell?.wraps = false
         // SwiftUI picks its own colour for a placeholder, and on a pale ground
         // that colour was near-white.
         field.placeholderAttributedString = placeholder(prompt, point: point)
         return field
+    }
+
+    /// Fork: the field takes the width it is given. Left to its own size, the
+    /// placeholder sat in the middle of that width, a gap away from the keyword.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextField, context: Context) -> CGSize? {
+        CGSize(
+            width: proposal.width ?? nsView.intrinsicContentSize.width,
+            height: proposal.height ?? nsView.intrinsicContentSize.height
+        )
     }
 
     private func placeholder(_ text: String, point: CGFloat) -> NSAttributedString {
@@ -373,6 +396,18 @@ struct AddressField: NSViewRepresentable {
             guard let field = note.object as? NSTextField else { return }
             let text = field.stringValue
 
+            // Fork: "y " is not an address. The y was a keyword, and the field
+            // is now that site's search (Fork/SearchKeywords.swift).
+            if !browser.summoning, browser.searchAlias == nil, let taken = browser.prefs.takeKeyword(text) {
+                browser.engageKeyword(taken.alias, query: taken.rest)
+                let shown = browser.completed
+                field.stringValue = shown
+                synced = shown
+                deleting = false
+                select(from: browser.typed.count, in: field)
+                return
+            }
+
             browser.typed = text
             guard !deleting, let ending = browser.ending else {
                 if deleting { browser.stopCompleting() }
@@ -428,8 +463,16 @@ struct AddressField: NSViewRepresentable {
                 deleting = true
                 textView.deleteWordBackward(nil)
                 return true
-            case #selector(NSResponder.deleteBackward(_:)),
-                 #selector(NSResponder.deleteForward(_:)),
+            case #selector(NSResponder.deleteBackward(_:)):
+                // Fork: nothing left to delete takes the keyword back, so the
+                // search can be left the way it was entered (Fork/SearchKeywords.swift).
+                if browser.searchAlias != nil, textView.string.isEmpty {
+                    browser.releaseKeyword(restoring: browser.searchAlias?.keyword ?? "")
+                    return true
+                }
+                deleting = true
+                return false
+            case #selector(NSResponder.deleteForward(_:)),
                  #selector(NSResponder.deleteWordForward(_:)):
                 deleting = true
                 return false
