@@ -71,12 +71,27 @@ extension ContentView {
         browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light
     }
 
-    /// The frame's top edge over the page. The same thin inset on every side
-    /// the column isn't already filling, including when the column is on the
-    /// right: the traffic lights there sit over the page, and only while the
-    /// pointer is at the top (see Fold.swift), rather than holding a row open.
+    /// The frame's top edge over the page. With the column on the right the
+    /// page meets the window's top edge. The traffic-light bar is not part of
+    /// that edge: it lies over the page, and only while the pointer is there
+    /// (see Fold.swift).
     var gutterTop: CGFloat {
-        framed ? 8 : 0
+        guard framed else { return 0 }
+        return sideRight ? 0 : 8
+    }
+
+    /// The page's top corners are square when it meets the window's top edge,
+    /// so the rounding doesn't leave a wedge of the frame there.
+    var squareTop: Bool { framed && sideRight }
+
+    var pageShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: squareTop ? 0 : pageCorner,
+            bottomLeadingRadius: pageCorner,
+            bottomTrailingRadius: pageCorner,
+            topTrailingRadius: squareTop ? 0 : pageCorner,
+            style: .continuous
+        )
     }
 
     /// The column is on the right. The page then gives up its trailing edge.

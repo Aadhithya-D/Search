@@ -307,17 +307,17 @@ struct ContentView: View {
                 // its corners rounded as Arc's are. The web view is AppKit and
                 // is rounded by its own layer (see StageView); this clips what
                 // SwiftUI draws over it, and lays a soft edge beneath.
-                .clipShape(RoundedRectangle(cornerRadius: pageCorner, style: .continuous))
+                .clipShape(pageShape)
                 .overlay {
                     if framed {
-                        RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
+                        pageShape
                             .strokeBorder(Color.black.opacity(0.10), lineWidth: 0.5)
                             .allowsHitTesting(false)
                     }
                 }
                 .background {
                     if framed {
-                        RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
+                        pageShape
                             .fill(Palette.ground)
                             .shadow(color: .black.opacity(0.10), radius: 3, y: 1)
                     }
@@ -372,7 +372,7 @@ struct ContentView: View {
     @ViewBuilder
     private var stage: some View {
         if let tab = browser.active {
-            Page(tab: tab, corner: pageCorner)
+            Page(tab: tab, corner: pageCorner, squareTop: squareTop)
                 // In the column's layout: a blank tab keeps its field in the
                 // middle of the page, and a click on the page puts away an
                 // address being typed in the column.

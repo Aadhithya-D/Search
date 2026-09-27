@@ -13,6 +13,8 @@ struct Page: View {
     @ObservedObject var tab: Tab
     /// The page's corners, when it sits as a card beside the column.
     var corner: CGFloat = 0
+    /// Fork: the top edge is the window's, so those two corners stay square.
+    var squareTop = false
 
     var body: some View {
         ZStack {
@@ -27,7 +29,7 @@ struct Page: View {
             // before and after the float changes nothing SwiftUI can see, so
             // the stage was never told to take it back when it landed, and
             // the tab stayed empty. Nothing, then the page, is a change.
-            WebStage(page: tab.isBlank || tab.asleep || tab.floating ? nil : tab.web, corner: corner)
+            WebStage(page: tab.isBlank || tab.asleep || tab.floating ? nil : tab.web, corner: corner, squareTop: squareTop)
 
             if let cover = tab.cover {
                 // The page as it was left, while it is rebuilt underneath —
@@ -131,11 +133,12 @@ private struct Disc: View {
 struct WebStage: NSViewRepresentable {
     let page: NSView?
     var corner: CGFloat = 0
+    var squareTop = false
 
     func makeNSView(context: Context) -> StageView { StageView() }
 
     func updateNSView(_ view: StageView, context: Context) {
-        view.round(corner)
+        view.round(corner, squareTop: squareTop)
         view.show(page)
     }
 }
@@ -161,10 +164,17 @@ final class StageView: NSView {
 
     /// Rounded by the layer, which clips the web view inside it too — a
     /// SwiftUI clip alone doesn't reach into an AppKit view.
-    func round(_ radius: CGFloat) {
+    /// `squareTop`: the page meets the window's top edge, so only the bottom
+    /// corners round. The view is not flipped, so minY is the bottom.
+    func round(_ radius: CGFloat, squareTop: Bool = false) {
         wantsLayer = true
-        guard let layer, layer.cornerRadius != radius else { return }
+        guard let layer else { return }
+        let mask: CACornerMask = squareTop
+            ? [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+            : [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+        guard layer.cornerRadius != radius || layer.maskedCorners != mask else { return }
         layer.cornerRadius = radius
+        layer.maskedCorners = mask
         layer.cornerCurve = .continuous
         layer.masksToBounds = radius > 0
     }
