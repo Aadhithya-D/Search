@@ -323,6 +323,16 @@ struct SideBar: View {
         .allowsHitTesting(false)
     }
 
+    /// Bookmark rows on screen. Folded, only the page open from a bookmark,
+    /// and the folders it is filed in.
+    private var markRows: Int {
+        guard marksFolded.contains(browser.spaceID) else {
+            return SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty)
+        }
+        guard let id = browser.active?.bookmark else { return 0 }
+        return bookmarks.ancestors(of: id).count + 1
+    }
+
     /// Where the rows stop and the window's own drag area starts. Added up
     /// from what was drawn rather than measured: a measurement would arrive a
     /// frame late, and for one frame the whole column would drag the window.
@@ -334,8 +344,7 @@ struct SideBar: View {
             : CGFloat(pinRows) * pinHeight + CGFloat(pinRows - 1) * SideBar.pinGap + 8
         let looseCount = browser.tabs.filter { $0.pin == nil && $0.bookmark == nil }.count
         let loose = CGFloat(looseCount) * (SideBar.row + SideBar.gap)
-        let marks = marksFolded.contains(browser.spaceID) ? 0
-            : CGFloat(SideMarks.count(bookmarks.roots, open: foldersOpen, empty: bookmarks.isEmpty)) * (SideBar.row + SideBar.gap)
+        let marks = CGFloat(markRows) * (SideBar.row + SideBar.gap)
         // The lights, the address, the space's name, the bookmark rows, New Tab, and the loose tabs.
         return SideBar.topRow + SideAddress.block + pinBlock + SideBar.section + marks + SideBar.ruleHeight + loose + (SideBar.row + SideBar.gap) + 16
     }
@@ -509,10 +518,12 @@ struct SideBar: View {
                     Button("New Folder") { newFolder(into: nil) }
                     Button("Theme…") { theming = true }
                 }
-            if !marksFolded.contains(browser.spaceID) {
-                SideMarks(browser: browser, bookmarks: bookmarks, open: openFolders, aim: aim, strike: prefs.strikeClosedMarks)
-                    .transition(.opacity)
-            }
+            SideMarks(
+                browser: browser, bookmarks: bookmarks, open: openFolders, aim: aim,
+                strike: prefs.strikeClosedMarks,
+                compact: marksFolded.contains(browser.spaceID)
+            )
+            .transition(.opacity)
             rule
             newTab
             loose

@@ -71,18 +71,16 @@ extension ContentView {
         browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light
     }
 
-    /// The frame's top edge over the page. With the column on the right the
-    /// page meets the window's top edge. The traffic-light bar is not part of
-    /// that edge: it lies over the page, and only while the pointer is there
-    /// (see Fold.swift).
+    /// The frame's top edge over the page. The same inset as the other sides
+    /// of the card, including when the column is on the right. The traffic
+    /// lights there still wait for the pointer (see Fold.swift); they do not
+    /// take this inset away.
     var gutterTop: CGFloat {
-        guard framed else { return 0 }
-        return sideRight ? 0 : 8
+        framed ? 8 : 0
     }
 
-    /// The page's top corners are square when it meets the window's top edge,
-    /// so the rounding doesn't leave a wedge of the frame there.
-    var squareTop: Bool { framed && sideRight }
+    /// The card's corners are all the same. A square top read as a missing edge.
+    var squareTop: Bool { false }
 
     var pageShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(

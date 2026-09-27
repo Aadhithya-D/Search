@@ -139,6 +139,9 @@ struct SideMarks: View {
     /// Closed pages are crossed out. The column passes the setting so a
     /// change in Settings redraws these rows.
     var strike = true
+    /// The space's name was clicked. Only the bookmark on screen stays, with
+    /// the folders it is filed in. Everything else in the list is folded away.
+    var compact = false
 
     @State private var overEmpty = false
 
@@ -146,9 +149,20 @@ struct SideMarks: View {
     /// The list sliding past belongs to another space. It is only a picture.
     private var live: Bool { tree == nil }
 
+    /// Bookmarks still drawn while the space is folded: the page on screen,
+    /// and each folder it sits in. Nil when the whole list is drawn. Empty
+    /// when nothing on screen is a bookmark, so the list goes away entirely.
+    private var path: Set<Bookmark.ID>? {
+        guard compact, live else { return nil }
+        guard let id = browser.active?.bookmark else { return [] }
+        return Set(bookmarks.ancestors(of: id) + [id])
+    }
+
     var body: some View {
         Group {
-            if shown.isEmpty {
+            if path?.isEmpty == true {
+                EmptyView()
+            } else if shown.isEmpty {
                 Text("No bookmarks yet")
                     .font(.system(size: 12))
                     .foregroundStyle(Palette.hush)
@@ -185,7 +199,8 @@ struct SideMarks: View {
 
     @ViewBuilder
     private func rows(_ nodes: [Bookmark], depth: Int) -> some View {
-        ForEach(nodes) { node in
+        let visible = path.map { keep in nodes.filter { keep.contains($0.id) } } ?? nodes
+        ForEach(visible) { node in
             if node.isFolder {
                 folder(node, depth: depth)
             } else {
@@ -195,7 +210,9 @@ struct SideMarks: View {
     }
 
     private func folder(_ node: Bookmark, depth: Int) -> some View {
-        let opened = open.contains(node.id)
+        // Folded to the page on screen, the folders around it stay open so
+        // that one row is still there. The others are not in `rows` at all.
+        let opened = path?.contains(node.id) == true || open.contains(node.id)
         let kids = node.children ?? []
         return VStack(alignment: .leading, spacing: SideBar.gap) {
             line(node, depth: depth, folder: true, opened: opened, live: false, close: nil, newFolder: {
@@ -414,6 +431,21 @@ struct SideMarks: View {
             .padding(.trailing, 8)
             .frame(height: SideBar.row)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // The title fades out under the cross, the way a tab's title does,
+            // so the two never share the same letters.
+            .mask {
+                ZStack {
+                    Rectangle().opacity(hovering && close != nil ? 0 : 1)
+                    if close != nil {
+                        HStack(spacing: 0) {
+                            Rectangle()
+                            LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                                .frame(width: 16)
+                            Color.clear.frame(width: 28)
+                        }
+                    }
+                }
+            }
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(live || lit ? SideTone.chip(scheme, strong: true) : (over && !folder ? SideTone.chip(scheme, strong: true) : (hovering && !opened ? SideTone.chip(scheme, strong: false) : Color.clear)))

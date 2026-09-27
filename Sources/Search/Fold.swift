@@ -79,24 +79,8 @@ struct Fold: View {
     /// waited for.
     private static let dwell: TimeInterval = 0.15
 
-    @Environment(\.colorScheme) private var windowScheme
-
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // Fork: the bar the screenshot leaves above the page when the
-            // column is on the right. The page is already at the window's
-            // top; this strip covers it only while the pointer is there,
-            // and the traffic lights ride in with it.
-            if prefs.sidebar, prefs.sideRight, browser.active?.immersed != true {
-                hoverBar
-                    .frame(height: SideBar.topRow)
-                    .padding(.trailing, browser.folded ? 0 : prefs.sideWidth)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .offset(y: topNear ? 0 : -SideBar.topRow)
-                    .opacity(topNear ? 1 : 0)
-                    .allowsHitTesting(topNear)
-                    .animation(Motion.glide, value: topNear)
-            }
             // In the column's mode the page reaches the window's top edge —
             // beside the column, and everywhere once it is folded away — and
             // there was nowhere there to drag the window from, or to
@@ -196,18 +180,6 @@ struct Fold: View {
         .onChange(of: browser.editingTab) { _, editing in
             if editing == nil, !inside, browser.peeking { peek(false) }
         }
-    }
-
-    /// The space's own colour, across the top of the page, with a hairline
-    /// where it meets the page so it reads as a bar and not as the page.
-    private var hoverBar: some View {
-        Spaces.ground(browser.space)
-            .overlay(alignment: .bottom) {
-                Rectangle()
-                    .fill(Color.black.opacity(0.18))
-                    .frame(height: 1)
-            }
-            .environment(\.colorScheme, browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light)
     }
 
     /// Folded, and not taken over by a page filling the screen.
