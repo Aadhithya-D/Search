@@ -235,7 +235,7 @@ private struct SplitTabHalf: View {
             Speaker(tab: tab)
                 .padding(.trailing, stacked && hovering ? 3 : 0)
         } else if tab.loading && !(stacked && hovering) {
-            Ring(size: 10)
+            ProgressRing(tab: tab, size: 10)  // Fork: Fork/Loading.swift
                 .padding(.trailing, 3)
         }
     }

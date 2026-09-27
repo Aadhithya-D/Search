@@ -521,7 +521,7 @@ private struct TabPill: View {
                     } else if tab.loading {
                         // Its page on the way, as a tab's ring says; the
                         // letter or icon comes back once it is there.
-                        Ring(size: 11)
+                        ProgressRing(tab: tab, size: 11)  // Fork: Fork/Loading.swift
                     } else if prefs.glyph == .icons, let icon = tab.icon {
                         Mark(icon: icon, letter: tab.pin ?? "", size: 16, dim: tab.asleep)
                     } else {
@@ -592,7 +592,7 @@ private struct TabPill: View {
                         .background(Palette.ink.opacity(0.07), in: Circle())
                         .transition(.opacity)
                 } else if tab.loading {
-                    Ring()
+                    ProgressRing(tab: tab)
                 } else {
                     Mark(icon: prefs.glyph == .icons ? tab.icon : nil, letter: tab.monogram, size: 15, dim: tab.asleep)
                 }
@@ -671,7 +671,7 @@ private struct TabPill: View {
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .transition(.opacity)
                     } else if tab.loading {
-                        Ring().transition(.opacity)
+                        ProgressRing(tab: tab).transition(.opacity)
                     }
                 }
                 .frame(width: editing || (speaker && !hovering) ? 0 : 15, height: 15)

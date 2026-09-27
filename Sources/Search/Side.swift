@@ -673,7 +673,7 @@ private struct PinSquare: View {
                 PinField(browser: browser, tab: tab)
             } else if tab.loading {
                 // Its page on the way, as a row's ring says.
-                Ring(size: scale * 11 / 34)
+                ProgressRing(tab: tab, size: scale * 11 / 34)  // Fork: Fork/Loading.swift
             } else if prefs.glyph == .icons, let icon = tab.icon {
                 Mark(icon: icon, letter: tab.pin ?? "", size: scale * 16 / 34, dim: tab.asleep)
             } else {
@@ -784,7 +784,8 @@ private struct SideRow: View {
 
                 ZStack {
                     if tab.loading {
-                        Ring().transition(.opacity)
+                        // Fork: filling with the page (Fork/Loading.swift).
+                        ProgressRing(tab: tab).transition(.opacity)
                     } else {
                         Speaker(tab: tab).transition(.opacity)
                     }
