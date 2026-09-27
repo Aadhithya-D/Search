@@ -176,6 +176,10 @@ struct Fold: View {
         .onChange(of: browser.editingTab) { _, editing in
             if editing == nil, !inside, browser.peeking { peek(false) }
         }
+        // Fork: the same for the address typed into the card.
+        .onChange(of: browser.editing) { _, editing in
+            if !editing, !inside, browser.peeking { peek(false) }
+        }
     }
 
     /// Folded, and not taken over by a page filling the screen.
@@ -286,7 +290,7 @@ struct Fold: View {
             guard leaving == nil else { return }
             let going = DispatchWorkItem {
                 leaving = nil
-                guard browser.editingTab == nil else { return }
+                guard browser.editingTab == nil, !browser.editing else { return }
                 browser.peek(false)
             }
             leaving = going

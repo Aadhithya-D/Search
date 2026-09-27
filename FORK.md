@@ -41,6 +41,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 16 | Site icons follow the column's tone | `IconSurface.swift` | `Favicons.dark` asks `surfaceDark`; `Browser.follow` calls `followIconSurface`; `relook` not private | — |
 | 17 | The column's bookmarks fold under the space's name | `SideMarks.swift` (SectionHeader) | `SideBar.marksFolded`; rows, preview and `rowsEnd` skip a folded list | — |
 | 18 | A site icon with nothing visible in it is no icon | `IconInk.swift` | `Favicons.square` and `known` check `hasInk` | — |
+| 19 | Bug fixes: sidebar edge, printing and PDFs, media downloads, inspector, address in the card | `ColumnEdge.swift`, `SavingPages.swift`, `AddressLetGo.swift` | Side's `edge` uses `ColumnEdge` (drag far past the minimum folds); `printPage` → `print(_:)`; PDF bar's save/print delegate names; `PageView.forkMenu` (Print…, Download Audio/Video) with `MediaRelay`; `StageView` keeps each page's docked inspector (as upstream #278); `edit()` peeks the folded column instead of docking it; `Browser.follow` → `followAddressClicks` | #290, #278 |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of

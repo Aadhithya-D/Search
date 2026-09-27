@@ -884,6 +884,7 @@ final class Browser: NSObject, ObservableObject {
     private func follow() {
         followStore()
         followIconSurface()
+        followAddressClicks()
         // Spaces turned off: back to the first, whose tabs are the ones there
         // were before (see Spaces.swift).
         prefs.$usesSpaces
@@ -1488,13 +1489,9 @@ final class Browser: NSObject, ObservableObject {
 
     /// ⌘P. The system's own sheet, which is also where "save as PDF" lives.
     func printPage() {
-        guard let tab = active, !tab.isBlank, let window = NSApp.keyWindow else { return }
-        let info = NSPrintInfo.shared
-        info.horizontalPagination = .fit
-        info.isHorizontallyCentered = false
-        let job = tab.web.printOperation(with: info)
-        job.view?.frame = tab.web.bounds
-        job.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        // Fork: on the browser's window, not the key one (Fork/SavingPages.swift).
+        guard let tab = active, !tab.isBlank else { return }
+        print(tab.web)
     }
 
     /// A space's row as its session left it, made without touching the one
@@ -1874,11 +1871,12 @@ final class Browser: NSObject, ObservableObject {
     func edit() {
         summoning = false
         typed = active?.address?.absoluteString ?? ""
-        // Fork: the address lives in the column. Folded, it has to come out
-        // before the field can take the key.
-        if prefs.sidebar, folded {
-            peeking = false
-            folded = false
+        // Fork: the address lives in the column. Folded, the column comes
+        // out as the card it slides out as, and stays so while the address
+        // is typed: docking it swapped the card for another column, and the
+        // field with the caret went with the card.
+        if prefs.sidebar, folded, !peeking {
+            withAnimation(Motion.glide) { peeking = true }
         }
         editing = true
         focusRequest += 1
@@ -2370,7 +2368,7 @@ extension Browser: WKDownloadDelegate {
 
     /// WebKit refuses to write over a file that is already there, so the name
     /// gains a number rather than the download quietly failing.
-    private static func free(_ name: String, in folder: URL) -> URL {
+    static func free(_ name: String, in folder: URL) -> URL {
         let stem = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
         var candidate = folder.appendingPathComponent(name)
