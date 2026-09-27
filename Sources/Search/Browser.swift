@@ -1213,6 +1213,24 @@ final class Browser: NSObject, ObservableObject {
         rememberSession()
     }
 
+    /// Fork: the minus on a bookmark already put down. The page is forgotten.
+    /// The bookmark stays, and this click does not open it. Remove, in the
+    /// menu, is what takes the bookmark itself away.
+    func dismissBookmark(_ tab: Tab) {
+        guard tab.bookmark != nil, let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
+        let wasActive = activeID == tab.id
+        tab.close()
+        tabs.remove(at: index)
+        if wasActive {
+            if let row = tabs.last(where: { $0.bookmark == nil && $0.pin == nil }) {
+                select(row)
+            } else {
+                clearPage()
+            }
+        }
+        writeSession(now: true)
+    }
+
     /// Everything but this one. Pinned tabs are put down rather than removed —
     /// they are not open pages so much as places kept.
     func closeOthers(but keep: Tab) {
