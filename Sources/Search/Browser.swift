@@ -1629,6 +1629,8 @@ final class Browser: NSObject, ObservableObject {
         }
 
         Spaces.sharing = Set(spaces.filter { $0.sharesSignIns == true }.map(\.id))
+        // Fork: the session's sign-ins back first (Fork/SessionCookies.swift).
+        if record == nil { followSessionCookies() }
         if let record {
             // Another window: the space it showed, and its own rows.
             self.record = record
@@ -4940,6 +4942,7 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
         // A page with nothing to lay out never has a first frame. Done is
         // done, and it is shown.
         (webView as? PageView)?.showFirstFrame()
+        SessionCookies.soon(self)  // Fork: Fork/SessionCookies.swift
         guard let tab = anyTab(for: webView), let url = tab.address else { return }
         tab.uncover()
         // The find bar still open over a page that has just come in: look

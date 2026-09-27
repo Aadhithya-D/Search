@@ -29,7 +29,7 @@ final class Links: NSObject, NSApplicationDelegate {
         }
         guard waiting else {
             terminationPending = false
-            return .terminateNow
+            return keepSessionCookies(sender)  // Fork: Fork/SessionCookies.swift
         }
         if !terminationPending {
             terminationPending = true
@@ -55,6 +55,22 @@ final class Links: NSObject, NSApplicationDelegate {
         // And the bookmarks or downloads list saved a moment ago, still on
         // their way to the disk.
         Disk.drain()
+    }
+
+    /// Fork: the session's sign-ins are kept before the app goes
+    /// (Fork/SessionCookies.swift) — asked for, so they wait a moment for it.
+    @MainActor private func keepSessionCookies(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let browser = MainActor.assumeIsolated { Browsers.primary ?? Browsers.front }
+        guard let browser else { return .terminateNow }
+        var answered = false
+        let answer = {
+            guard !answered else { return }
+            answered = true
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        SessionCookies.keep(browser, done: answer)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: answer)
+        return .terminateLater
     }
 
     /// The nearest thing to a crash reporter a browser with no server can
