@@ -44,11 +44,23 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 19 | Bug fixes: sidebar edge, printing and PDFs, media downloads, inspector, address in the card | `ColumnEdge.swift`, `SavingPages.swift`, `AddressLetGo.swift` | Side's `edge` uses `ColumnEdge` (drag far past the minimum folds); `printPage` → `print(_:)`; PDF bar's save/print delegate names; `PageView.forkMenu` (Print…, Download Audio/Video) with `MediaRelay`; `StageView` keeps each page's docked inspector (as upstream #278); `edit()` peeks the folded column instead of docking it; `Browser.follow` → `followAddressClicks` | #290, #278 |
 | 20 | A tab's preview beside the column | `TabPreview.swift` | Row and pin `onHover`; `Browser.select` hides it; `Tab.coverPicture` | #260, #24 |
 | 21 | Loading, said quietly | `Loading.swift` | `LoadLine` over the stage; `ProgressRing` in place of `Ring` in the column and strip | — |
+| 22 | The keychain asks as little as it can | `QuietKeychain.swift` | `build.sh` signs with "Search Local Signing" when there is no Developer ID; `Vault` lists without secrets and `secret(for:)` reads the one used; `choose`, `copy`, the sign-in check and Show read one; imports add only accounts not kept; the import sheet chooses what to bring | — |
+| 23 | Session-only sign-ins outlast quitting | `SessionCookies.swift` | `Browser.init` calls `followSessionCookies`; `didFinish` calls `SessionCookies.soon`; `Links.applicationShouldTerminate` waits for `keep` | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of
 26 Sep 2026. Recheck them before each sync; merged ones are the ones to
 compare against.
+
+## Signing
+
+Without a Developer ID, `build.sh` signs with "Search Local Signing", a
+code-signing certificate made on this Mac and kept in its login keychain. It
+gives every build the same identity, which the keychain goes by, so saved
+passwords and kept sign-ins don't ask again after each rebuild. Without it the
+build is ad-hoc, as upstream's is. To make one on another Mac: a self-signed
+certificate with the code-signing extended key usage, named exactly that,
+imported into the login keychain with access for `/usr/bin/codesign`.
 
 ## Checking a sync
 

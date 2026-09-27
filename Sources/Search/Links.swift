@@ -26,6 +26,23 @@ final class Links: NSObject, NSApplicationDelegate {
         Links.flush?()
     }
 
+    /// Fork: the session's sign-ins are kept before the app goes
+    /// (Fork/SessionCookies.swift) — asked for, so they wait a moment for it.
+    private static weak var quitting: Browser?
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let browser = Links.quitting else { return .terminateNow }
+        var answered = false
+        let answer = {
+            guard !answered else { return }
+            answered = true
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        SessionCookies.keep(browser, done: answer)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: answer)
+        return .terminateLater
+    }
+
     /// The nearest thing to a crash reporter a browser with no server can
     /// have: nothing is sent anywhere, but a beta with no record of what
     /// went wrong is a beta nobody can fix. One line, appended, so it
@@ -130,6 +147,7 @@ final class Links: NSObject, NSApplicationDelegate {
             comeForward()
         }
         flush = { [weak browser] in browser?.flushSession() }
+        quitting = browser
         let early = waiting
         waiting = []
         guard let first = early.first else { return }
