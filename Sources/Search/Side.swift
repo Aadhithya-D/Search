@@ -113,6 +113,7 @@ struct SideBar: View {
                 // The spaces side by side, as pages: two fingers sideways move
                 // the one on screen and the next one together, the next one
                 // coming in as this one goes, with nothing between them.
+                // Past the last, the first; back from the first, the last.
                 pages
 
                 Spacer(minLength: 0)
@@ -203,18 +204,16 @@ struct SideBar: View {
         let width = prefs.sideWidth
         let swipe = browser.spaceSwipe
         let at = spaceAt
+        let count = browser.spaces.count
+        // Taken, the page that was asked for. Still deciding, the next one
+        // around — the last follows the first.
+        let incoming = browser.spaceArrival ?? SpaceSwipe.neighbor(of: at, step: swipe < 0 ? 1 : -1, count: count)
         return ZStack(alignment: .topLeading) {
             page(at, pill: pill)
                 .offset(x: swipe)
-            // Only while the fingers are bringing one in: the one they are
-            // bringing, a page's width away.
-            if swipe > 0, at > 0 {
-                page(at - 1, pill: before)
-                    .offset(x: swipe - width)
-            }
-            if swipe < 0, at < browser.spaces.count {
-                page(at + 1, pill: after)
-                    .offset(x: swipe + width)
+            if swipe != 0, let incoming {
+                page(incoming, pill: swipe < 0 ? after : before)
+                    .offset(x: swipe + (swipe < 0 ? width : -width))
             }
         }
         // The pages are the column's whole width, each with its own margin.

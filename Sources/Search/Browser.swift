@@ -726,6 +726,9 @@ final class Browser: NSObject, ObservableObject {
     /// How far the column's rows have followed two fingers sideways, and
     /// whether the card for a new space stands in for them (see SpaceSwipe).
     @Published var spaceSwipe: CGFloat = 0
+    /// Which page is sliding in, once a swipe has been taken. Nil while the
+    /// fingers are still moving: the next space around is shown then.
+    @Published var spaceArrival: Int?
     @Published var makingSpace = false
     /// A link's page, peeked at over this one (see Peek.swift).
     @Published var peekTab: Tab?
