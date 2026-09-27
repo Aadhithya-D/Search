@@ -3,8 +3,9 @@ import SwiftUI
 // Spaces, paged through: in the column, two fingers sideways go from one to
 // the next, the rows following them, as in Arc; in the bar across the top,
 // the same up and down, the row of tabs following them — or a mouse wheel's
-// notch, one space at a time. Past the last space a new one is made in
-// place. The space's icon turns over as it goes (see SpaceDot).
+// notch, one space at a time. The row wraps: past the last is the first, and
+// back from the first is the last. The space's icon turns over as it goes
+// (see SpaceDot). The card for a new space is the button's, not the swipe's.
 
 /// The swipe between spaces. It reads the trackpad's own scroll events
 /// before anything else sees them, and takes only a gesture that starts over
@@ -51,11 +52,26 @@ final class SpaceSwipe {
         }
     }
 
-    /// Where the tabs are: the column, or the bar across the top.
+    /// Where the tabs are: the column, on whichever side it sits, or the bar
+    /// across the top.
     private func overTabs(_ event: NSEvent, in browser: Browser) -> Bool {
         guard event.window === Links.window, let window = event.window else { return false }
-        if browser.prefs.sidebar { return event.locationInWindow.x < browser.prefs.sideWidth }
+        if browser.prefs.sidebar {
+            let span = browser.prefs.sideWidth
+            let x = event.locationInWindow.x
+            if browser.prefs.sideRight { return x >= window.frame.width - span }
+            return x < span
+        }
         return event.locationInWindow.y > window.frame.height - Metrics.strip
+    }
+
+    /// The space `step` along from `index` (−1 back, +1 on). The row wraps.
+    /// `index == count` is the card for a new space, which only steps back.
+    static func neighbor(of index: Int, step: Int, count: Int) -> Int? {
+        if index == count { return step < 0 && count > 0 ? count - 1 : nil }
+        guard count > 1, step != 0 else { return nil }
+        let raw = index + step
+        return (raw % count + count) % count
     }
 
     /// True for an event the swipe keeps for itself.
@@ -68,9 +84,12 @@ final class SpaceSwipe {
             let rested = now.timeIntervalSince(notched) > 0.3 && now > resting
             notched = now
             guard rested else { return true }
-            let here = browser.makingSpace ? browser.spaces.count : (browser.spaces.firstIndex { $0.id == browser.spaceID } ?? 0)
-            let target = here + (event.scrollingDeltaY < 0 ? 1 : -1)
-            if target >= 0, target <= browser.spaces.count { slide(browser, to: target, from: here) }
+            let count = browser.spaces.count
+            let here = browser.makingSpace ? count : (browser.spaces.firstIndex { $0.id == browser.spaceID } ?? 0)
+            let forward = event.scrollingDeltaY < 0
+            if let target = SpaceSwipe.neighbor(of: here, step: forward ? 1 : -1, count: count) {
+                slide(browser, to: target, from: here, onward: forward)
+            }
             return true
         }
         if !event.momentumPhase.isEmpty { return gliding }
@@ -144,32 +163,40 @@ final class SpaceSwipe {
         defer { tracking = false }
         guard let browser, axis == .across else { return }
         let travel = gathered.width
-        let here = browser.makingSpace ? browser.spaces.count : (browser.spaces.firstIndex { $0.id == browser.spaceID } ?? 0)
-        // Fingers to the left, or up, bring what is next.
-        let target = cancelled || abs(travel) < SpaceSwipe.enough(for: browser) ? here : here + (travel < 0 ? 1 : -1)
-        guard target != here, target >= 0, target <= browser.spaces.count else {
+        let count = browser.spaces.count
+        let here = browser.makingSpace ? count : (browser.spaces.firstIndex { $0.id == browser.spaceID } ?? 0)
+        // Fingers to the left, or up, bring what is next — around, at the ends.
+        let forward = travel < 0
+        let commit = !cancelled && abs(travel) >= SpaceSwipe.enough(for: browser)
+        guard commit, let target = SpaceSwipe.neighbor(of: here, step: forward ? 1 : -1, count: count), target != here else {
             withAnimation(Motion.settle) { browser.spaceSwipe = 0 }
             return
         }
-        slide(browser, to: target, from: here)
+        slide(browser, to: target, from: here, onward: forward)
     }
 
-    /// Nothing that way: the rows give a little, and come back.
+    /// Nothing that way: one space on its own, or forward off the card for a
+    /// new one. The rows give a little, and come back. Either end of a longer
+    /// row wraps, so it does not.
     private func resisted(_ travel: CGFloat, in browser: Browser) -> CGFloat {
-        let here = browser.makingSpace ? browser.spaces.count : (browser.spaces.firstIndex { $0.id == browser.spaceID } ?? 0)
-        let blocked = (travel > 0 && here == 0) || (travel < 0 && here == browser.spaces.count)
+        let count = browser.spaces.count
+        let here = browser.makingSpace ? count : (browser.spaces.firstIndex { $0.id == browser.spaceID } ?? 0)
+        let blocked = count <= 1 || (here == count && travel < 0)
         return blocked ? travel / 4 : travel
     }
 
     /// The pages carry on the way the fingers went until the next one is
     /// where this one was; then it becomes the one on screen, in the same
-    /// frame and without anything moving — it was already there. One past
-    /// the last space is the card for a new one.
-    func slide(_ browser: Browser, to target: Int, from here: Int) {
+    /// frame and without anything moving — it was already there. `onward`
+    /// is which way that is when the index wraps, the last back to the first.
+    /// One past the last space is the card for a new one, asked for by its button.
+    func slide(_ browser: Browser, to target: Int, from here: Int, onward: Bool? = nil) {
         // A page is the column's width, or the bar's height.
         let width = browser.prefs.sidebar ? browser.prefs.sideWidth : Metrics.strip
-        let away: CGFloat = target > here ? -1 : 1
-        browser.spaceStep = target > here ? 1 : -1
+        let forward = onward ?? (target > here)
+        let away: CGFloat = forward ? -1 : 1
+        browser.spaceStep = forward ? 1 : -1
+        browser.spaceArrival = target
         resting = Date().addingTimeInterval(SpaceSwipe.rest)
         withAnimation(.easeOut(duration: 0.22), completionCriteria: .removed) {
             browser.spaceSwipe = away * width
@@ -179,11 +206,12 @@ final class SpaceSwipe {
             withTransaction(still) {
                 if target == browser.spaces.count {
                     browser.makingSpace = true
-                } else {
+                } else if browser.spaces.indices.contains(target) {
                     browser.makingSpace = false
                     browser.switchSpace(to: browser.spaces[target].id)
                 }
                 browser.spaceSwipe = 0
+                browser.spaceArrival = nil
             }
         }
     }
