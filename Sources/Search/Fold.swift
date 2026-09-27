@@ -61,6 +61,9 @@ struct Fold: View {
     @State private var inside = false
     /// Fork: the pointer is close enough to the column's edge for its handle.
     @State private var edgeNear = false
+    /// Fork: the pointer is on the top edge, so the traffic lights — kept off
+    /// the page while the column is on the right — can come back.
+    @State private var topNear = false
     @State private var pointer = Pointer()
 
     /// How near the edge the pointer has to be.
@@ -159,6 +162,7 @@ struct Fold: View {
             Lights.nudge(card ? CGSize(width: Fold.inset, height: Fold.inset) : .zero)
         }
         .onChange(of: folding) { _, _ in watch() }
+        .onChange(of: prefs.sideRight) { _, _ in watch() }
         // Back to the strip and then to the column again: the column comes
         // back as it rests — whole, not folded from a time nobody remembers,
         // unless Settings says it rests folded.
@@ -197,20 +201,29 @@ struct Fold: View {
     }
 
     private var lightsOff: Bool {
-        // Fork: a column on the right never holds them; they stay in the
-        // window's corner, on the space's colour.
-        if prefs.sidebar, prefs.sideRight { return false }
+        // Fork: a column on the right never holds the lights. They would sit
+        // on the page, so they stay off the top until the pointer is there.
+        if prefs.sidebar, prefs.sideRight, browser.active?.immersed != true {
+            return !topNear
+        }
         return browser.folded && !browser.peeking
     }
 
-    /// The pointer is watched only while there is something folded for it
-    /// to bring out; the rest of the time no move of it costs anything.
+    /// The pointer is watched while something folded can come out, and while
+    /// the column is on the right, so a hand at the top can bring the lights back.
+    private var watching: Bool {
+        folding || (prefs.sidebar && prefs.sideRight && browser.active?.immersed != true)
+    }
+
+    /// The pointer is watched only while there is something for it to bring
+    /// out; the rest of the time no move of it costs anything.
     private func watch() {
-        if folding {
+        if watching {
             pointer.start { follow() }
         } else {
             pointer.stop()
             if edgeNear { edgeNear = false }
+            if topNear { topNear = false }
         }
     }
 
@@ -220,7 +233,25 @@ struct Fold: View {
     /// and after a few quick opens and closes the column stayed open, or the
     /// edge stopped opening it.
     private func follow() {
-        guard folding, let window = pointer.window, window.isVisible else { return pass() }
+        guard let window = pointer.window, window.isVisible else {
+            if folding { pass() }
+            return
+        }
+        // Fork: the lights over a right-hand column. A thin band brings them
+        // in; once they are in, the band is the row they occupy, so moving
+        // onto a button does not put them away.
+        if prefs.sidebar, prefs.sideRight, browser.active?.immersed != true {
+            let screen = NSEvent.mouseLocation
+            let point = window.convertPoint(fromScreen: screen)
+            let height = window.frame.size.height
+            let fromTop = height - point.y
+            let inWindow = point.x >= 0 && point.x < window.frame.size.width && point.y >= 0 && point.y < height
+            let zone: CGFloat = topNear ? SideBar.topRow + 8 : Fold.top
+            let near = inWindow && fromTop >= 0 && fromTop <= zone
+                && NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber
+            if near != topNear { topNear = near }
+        }
+        guard folding else { return }
         let screen = NSEvent.mouseLocation
         let point = window.convertPoint(fromScreen: screen)
         let size = window.frame.size

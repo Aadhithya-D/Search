@@ -49,6 +49,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 24 | A keyword and a space searches that site | `SearchKeywords.swift` | `Preferences.searchAliases`; `Browser.searchAlias`, cleared where the field starts over; `guess` and `submit` search the keyword's site; the field and the column's address show its name; Settings › General lists them | #188 |
 | 25 | Clear closes the tabs under New Tab | `ClearLoose.swift` | The column's rows use `looseRule` above New Tab | — |
 | 26 | Pins show selected, open and put down | — | `PinSquare`: fill and border when selected, no fill when open, grey when put down | — |
+| 27 | With the column on the right, the page keeps its inset at the top; the lights wait for the pointer | `ColumnColour.swift` | `gutterTop`; `Fold` watches the top edge and hides the lights until the pointer is there | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of
