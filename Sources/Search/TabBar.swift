@@ -103,13 +103,11 @@ struct TabBar: View {
                             }
                                 .offset(y: browser.spaceSwipe)
                         }
-                        if browser.spaceSwipe > 0, spaceAt > 0 {
-                            page(spaceAt - 1, in: geo.size.width, pill: above)
-                                .offset(y: browser.spaceSwipe - Metrics.strip)
-                        }
-                        if browser.spaceSwipe < 0, spaceAt < browser.spaces.count {
-                            page(spaceAt + 1, in: geo.size.width, pill: below)
-                                .offset(y: browser.spaceSwipe + Metrics.strip)
+                        // Fork: the row wraps (SpaceSwipe.neighbor).
+                        if browser.spaceSwipe != 0,
+                           let incoming = browser.spaceArrival ?? SpaceSwipe.neighbor(of: spaceAt, step: browser.spaceSwipe < 0 ? 1 : -1, count: browser.spaces.count) {
+                            page(incoming, in: geo.size.width, pill: browser.spaceSwipe < 0 ? below : above)
+                                .offset(y: browser.spaceSwipe + (browser.spaceSwipe < 0 ? Metrics.strip : -Metrics.strip))
                         }
                     }
                     .frame(width: making ? min(540, room(in: geo.size.width)) : run(in: geo.size.width), height: Metrics.strip, alignment: .leading)
