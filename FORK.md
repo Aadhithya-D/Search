@@ -37,7 +37,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 11 | The column can sit on the right (and the fix after it: a folded column on the right peeks out on the right) | — | `Preferences.sideRight` and Settings; page, peek, hidden panel, column edge and Fold follow the side | #340, #314 |
 | 12 | A folded column shows a handle on its edge | `FoldedColumn.swift` | `Fold` tracks `edgeNear` and overlays `SideHandle` | #256, #243 |
 | 13 | The folded column floats as a card, lights inside it | `FoldedColumn.swift` | Fold styles the peeking column; `Lights.nudge` | #252 |
-| 15 | Closing the last open page lands on a new tab | `LastTabClosed.swift` | `Browser.close` asks `closesLastPage` | — |
+| 15 | Closing the last open page lands on a new tab (see 30) | `LastTabClosed.swift` | `Browser.close` asks `closesLastPage` | — |
 | 16 | Site icons follow the column's tone | `IconSurface.swift` | `Favicons.dark` asks `surfaceDark`; `Browser.follow` calls `followIconSurface`; `relook` not private | — |
 | 17 | The column's bookmarks fold under the space's name | `SideMarks.swift` (SectionHeader) | `SideBar.marksFolded`; rows, preview and `rowsEnd` skip a folded list | — |
 | 18 | A site icon with nothing visible in it is no icon | `IconInk.swift` | `Favicons.square` and `known` check `hasInk` | — |
@@ -52,6 +52,8 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 27 | With the column on the right, the page keeps its inset at the top; the lights wait for the pointer | `ColumnColour.swift` | `gutterTop`; `Fold` watches the top edge and hides the lights until the pointer is there | — |
 | 28 | Bookmark rows show open and closed | `SideMarks.swift` | `Preferences.strikeClosedMarks` and `greysClosed` with their switches in Settings › Tabs; `PinSquare` greys by the same switch | — |
 | 29 | Spaces wrap when swiped, over a column on either side | — | `SpaceSwipe.neighbor` and `slide(onward:)` in `SpaceSwipe.swift`; `Browser.spaceArrival`; the column's and the strip's pages show the neighbour around | #272 |
+| 30 | The last page closed can leave the window empty (a setting, on) | `LastTabClosed.swift` | `Preferences.emptiesWindow`; `Browser.close` calls `afterLastPage`; `submit` calls `show`; the session keeps "nothing open" as −1 | — |
+| 31 | A bookmark's page closed can be kept, with a minus to remove it (a setting, on) | `BookmarkPagesKept.swift`, `SideMarks.swift` | `Preferences.keepsBookmarkPages`; `Browser.close` calls `putDown(bookmarkPage:)`; `Browser.dismissBookmark`; the row's minus | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of

@@ -291,6 +291,14 @@ struct SettingsPanel: View {
                 Switch(on: $prefs.bookmarksBar)
             }
             Rule()
+            Line("Leave the window empty when the last page closes", "Off, a new tab opens in its place. ⌘T or an address opens a page.") {
+                Switch(on: $prefs.emptiesWindow)
+            }
+            Rule()
+            Line("Keep a bookmark's page when it is closed", "It comes back where you left it, and its row shows a minus that removes the bookmark. Off, the page is gone and the bookmark opens afresh.") {
+                Switch(on: $prefs.keepsBookmarkPages)
+            }
+            Rule()
             Line("Grey out pins and bookmarks that aren't open", "Off, they keep their colour and are only lighter.") {
                 Switch(on: $prefs.greysClosed)
             }

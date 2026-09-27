@@ -185,6 +185,17 @@ final class Preferences: ObservableObject {
     @Published var greysClosed: Bool {
         didSet { store.set(greysClosed, forKey: "column.greys") }
     }
+    /// Fork: closing the last page leaves the window empty rather than a new
+    /// tab (Fork/LastTabClosed.swift). On unless turned off.
+    @Published var emptiesWindow: Bool {
+        didSet { store.set(emptiesWindow, forKey: "tabs.empty") }
+    }
+    /// Fork: a bookmark's page closed is put down, kept where it was, and its
+    /// row's minus removes the bookmark (Fork/BookmarkPagesKept.swift). On
+    /// unless turned off.
+    @Published var keepsBookmarkPages: Bool {
+        didSet { store.set(keepsBookmarkPages, forKey: "bookmarks.keep") }
+    }
     /// Fork: a closed bookmark in the column is crossed out, as well as dimmed.
     /// On unless turned off (Fork/SideMarks.swift).
     @Published var strikeClosedMarks: Bool {
@@ -304,6 +315,8 @@ final class Preferences: ObservableObject {
         littleLinks = store.bool(forKey: "links.little")
         bookmarksBar = store.bool(forKey: "bookmarks.bar")
         greysClosed = store.object(forKey: "column.greys") as? Bool ?? true
+        emptiesWindow = store.object(forKey: "tabs.empty") as? Bool ?? true
+        keepsBookmarkPages = store.object(forKey: "bookmarks.keep") as? Bool ?? true
         strikeClosedMarks = store.object(forKey: "bookmarks.strike") as? Bool ?? true
         let links = store.bool(forKey: "links.show")
         showsLinks = links
