@@ -80,9 +80,9 @@ struct KeywordMark: View {
             .lineLimit(1)
             .truncationMode(.tail)
             .padding(.horizontal, 7)
-            .padding(.vertical, 2)
+            .padding(.vertical, 1)
             .background(Capsule().fill(Color(red: 0.73, green: 0.29, blue: 0.49)))
-            .frame(maxWidth: 140)
+            .fixedSize()
     }
 }
 

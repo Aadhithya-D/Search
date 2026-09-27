@@ -50,7 +50,7 @@ struct SideAddress: View {
             if typingHere {
                 if let name = browser.searchAlias?.name {
                     KeywordMark(name: name)
-                        .padding(.trailing, 6)
+                        .padding(.trailing, 4)
                 }
                 AddressField(
                     browser: browser,

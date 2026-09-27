@@ -59,17 +59,20 @@ struct Omnibox: View {
     }
 
     private var field: some View {
-        HStack(spacing: 8) {
+        let keyed = browser.searchAlias != nil
+        return HStack(spacing: keyed ? 6 : 0) {
             if let name = browser.searchAlias?.name {
                 KeywordMark(name: name)
             }
             AddressField(
                 browser: browser,
-                prompt: browser.searchAlias == nil ? browser.prefs.searchPrompt : "Enter search terms"
+                prompt: keyed ? "Enter search terms" : browser.prefs.searchPrompt
             )
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 22)
         }
-        .padding(.horizontal, 22)
+        .padding(.leading, keyed ? 8 : 22)
+        .padding(.trailing, 22)
             .padding(.vertical, 14)
             .background {
                 ZStack {
@@ -284,13 +287,24 @@ struct AddressField: NSViewRepresentable {
         field.focusRingType = .none
         field.font = .systemFont(ofSize: point)
         field.textColor = Palette.NS.ink
+        field.alignment = .left
         field.lineBreakMode = .byTruncatingTail
+        field.cell?.alignment = .left
         field.cell?.usesSingleLineMode = true
         field.cell?.wraps = false
         // SwiftUI picks its own colour for a placeholder, and on a pale ground
         // that colour was near-white.
         field.placeholderAttributedString = placeholder(prompt, point: point)
         return field
+    }
+
+    /// The field takes the width it is given. Left to its own size, the
+    /// placeholder sat in the middle of that width, a gap away from the keyword.
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSTextField, context: Context) -> CGSize? {
+        CGSize(
+            width: proposal.width ?? nsView.intrinsicContentSize.width,
+            height: proposal.height ?? nsView.intrinsicContentSize.height
+        )
     }
 
     private func placeholder(_ text: String, point: CGFloat) -> NSAttributedString {
