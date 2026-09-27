@@ -62,11 +62,15 @@ struct ExtensionsInline: View {
         var body: some View {
             HStack(spacing: 7) {
                 ExtensionIcon(button: button, size: 15)
+                // The menu is a menu's width. A long name is cut rather than
+                // pushing the card out to the end of the title; the full
+                // name is the help.
                 Text(button.name)
                     .font(MenuMetrics.font)
                     .foregroundStyle(hovering ? Color.white : Color(nsColor: button.enabled ? .labelColor : .secondaryLabelColor))
                     .lineLimit(1)
-                Spacer(minLength: 24)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.leading, MenuMetrics.text - MenuMetrics.inset)
             .padding(.trailing, MenuMetrics.trailing - MenuMetrics.inset)
