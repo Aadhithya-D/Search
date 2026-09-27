@@ -614,7 +614,7 @@ private struct PinSquare: View {
             }
         }
         // Fork: a pin put down is grey. One open keeps its colour, selected or not.
-        .saturation(tab.asleep ? 0 : 1)
+        .saturation(tab.asleep && prefs.greysClosed ? 0 : 1)
         .opacity(tab.asleep ? 0.45 : 1)
         .frame(width: scale * 16 / 34, height: scale * 16 / 34)
         .frame(width: width, height: height)

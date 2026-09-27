@@ -180,6 +180,16 @@ final class Preferences: ObservableObject {
     @Published var bookmarksBar: Bool {
         didSet { store.set(bookmarksBar, forKey: "bookmarks.bar") }
     }
+    /// Fork: pins and bookmarks with no page loaded are grey, not only
+    /// lighter. On unless turned off.
+    @Published var greysClosed: Bool {
+        didSet { store.set(greysClosed, forKey: "column.greys") }
+    }
+    /// Fork: a closed bookmark in the column is crossed out, as well as dimmed.
+    /// On unless turned off (Fork/SideMarks.swift).
+    @Published var strikeClosedMarks: Bool {
+        didSet { store.set(strikeClosedMarks, forKey: "bookmarks.strike") }
+    }
     @Published var showsLinks: Bool {
         didSet {
             store.set(showsLinks, forKey: "links.show")
@@ -293,6 +303,8 @@ final class Preferences: ObservableObject {
         peeksLinks = store.bool(forKey: "links.peek")
         littleLinks = store.bool(forKey: "links.little")
         bookmarksBar = store.bool(forKey: "bookmarks.bar")
+        greysClosed = store.object(forKey: "column.greys") as? Bool ?? true
+        strikeClosedMarks = store.object(forKey: "bookmarks.strike") as? Bool ?? true
         let links = store.bool(forKey: "links.show")
         showsLinks = links
         HoveredLink.on = links
