@@ -28,7 +28,7 @@ enum Web {
     /// included, and registering a name twice is a hard crash.
     @MainActor static func release(_ controller: WKUserContentController) {
         for name in [ScrollRelay.name, VeilRelay.name, FormRelay.name, ImageRelay.name,
-                     StoreRelay.name, PasskeyRelay.name, MiddleRelay.name, IconRelay.name] {
+                     StoreRelay.name, PasskeyRelay.name, MiddleRelay.name, IconRelay.name, MediaRelay.name] {
             controller.removeScriptMessageHandler(forName: name, contentWorld: world)
             controller.removeScriptMessageHandler(forName: name, contentWorld: .page)
         }
@@ -485,6 +485,7 @@ final class Tab: ObservableObject, Identifiable {
     private let veils_ = VeilRelay()
     private let forms = FormRelay()
     private let images = ImageRelay()
+    private let mediaRelay = MediaRelay()
     private let shop = StoreRelay()
     private let iconChanges = IconRelay()
     private let middles = MiddleRelay()
@@ -643,6 +644,8 @@ final class Tab: ObservableObject, Identifiable {
         controller.add(relay, contentWorld: Web.world, name: ScrollRelay.name)
         controller.add(veils_, contentWorld: Web.world, name: VeilRelay.name)
         controller.add(images, contentWorld: Web.world, name: ImageRelay.name)
+        mediaRelay.page = web
+        controller.add(mediaRelay, contentWorld: Web.world, name: MediaRelay.name)
         controller.add(shop, contentWorld: Web.world, name: StoreRelay.name)
         controller.add(iconChanges, contentWorld: Web.world, name: IconRelay.name)
         controller.add(forms, contentWorld: Web.world, name: FormRelay.name)
@@ -767,6 +770,9 @@ final class Tab: ObservableObject, Identifiable {
         )
         controller.addUserScript(
             WKUserScript(source: ImageRelay.watch, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: Web.world)
+        )
+        controller.addUserScript(
+            WKUserScript(source: MediaRelay.watch, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: Web.world)
         )
         // The store's "Add to Search" only where Search can add extensions.
         // Before macOS 15.4 it was drawn all the same, and pressing it did
@@ -1544,6 +1550,8 @@ final class PageView: WKWebView {
                 menu.cancelTracking()
             }
         }
+        // Fork: Print…, and Download Audio / Video (Fork/SavingPages.swift).
+        forkMenu(menu)
         if let item = menu.items.first(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierSearchWeb" }),
            let name = searchName?() {
             webSearch = (item.target, item.action)
@@ -1559,6 +1567,10 @@ final class PageView: WKWebView {
 
     /// The item the bench's linkmenu will choose in the next menu.
     static var picking: String?
+    /// Fork: the media the page said was under the last right-click, and
+    /// whether it said so from the main frame (Fork/SavingPages.swift).
+    var media: PageMedia?
+    var mediaFrame = true
     var searchName: (() -> String?)?
     var onSearch: ((String) -> Void)?
     private var selection: String?
