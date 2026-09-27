@@ -514,7 +514,8 @@ struct SideBar: View {
                 SideMarks(browser: browser, bookmarks: bookmarks, open: openFolders, aim: aim)
                     .transition(.opacity)
             }
-            rule
+            // Fork: with Clear at its end (Fork/ClearLoose.swift).
+            looseRule
             newTab
             loose
         }

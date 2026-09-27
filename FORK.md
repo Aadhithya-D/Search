@@ -47,6 +47,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 22 | The keychain asks as little as it can | `QuietKeychain.swift` | `build.sh` signs with "Search Local Signing" when there is no Developer ID; `Vault` lists without secrets and `secret(for:)` reads the one used; `choose`, `copy`, the sign-in check and Show read one; imports add only accounts not kept; the import sheet chooses what to bring | — |
 | 23 | Session-only sign-ins outlast quitting | `SessionCookies.swift` | `Browser.init` calls `followSessionCookies`; `didFinish` calls `SessionCookies.soon`; `Links.applicationShouldTerminate` waits for `keep` | — |
 | 24 | A keyword and a space searches that site | `SearchKeywords.swift` | `Preferences.searchAliases`; `Browser.searchAlias`, cleared where the field starts over; `guess` and `submit` search the keyword's site; the field and the column's address show its name; Settings › General lists them | #188 |
+| 25 | Clear closes the tabs under New Tab | `ClearLoose.swift` | The column's rows use `looseRule` above New Tab | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of
