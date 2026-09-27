@@ -44,7 +44,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 19 | Pins and bookmarks show open, selected, and closed | `SideMarks.swift` | `PinSquare` fill and border; `Preferences.strikeClosedMarks` | — |
 | 20 | The page meets the top edge with the column on the right; lights on hover | `ColumnColour.swift` | `Fold` hides the lights until the pointer is at the top | — |
 | 21 | Closing the last page leaves the window open | `LastTabClosed.swift` | `Browser.close` no longer opens a blank tab or closes the window | — |
-| 22 | Closing a bookmark's page leaves a minus; Remove is the menu | `SideMarks.swift` | `Browser.close` puts a bookmark page down; the row shows a minus | — |
+| 22 | Closing a bookmark's page leaves a minus, which removes it | `SideMarks.swift` | `Browser.close` puts a bookmark page down; the minus calls `bookmarks.remove` | — |
 | 23 | Extension names in the site menu are cut; spaces wrap when swiped | `ExtensionsInline.swift`, `SpaceSwipe.swift` | Site menu is a fixed width; swipe wraps and starts over a column on the right | — |
 | 24 | A keyword and a space searches that site | `SearchKeywords.swift` | `Preferences.searchAliases`; `Browser.searchAlias`; address field takes the keyword | — |
 | 25 | Clear drops the loose tabs under New Tab | `Side.swift` | `Browser.clearLoose`; the first press keeps the open tab | — |

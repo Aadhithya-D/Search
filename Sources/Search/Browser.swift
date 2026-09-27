@@ -1160,9 +1160,8 @@ final class Browser: NSObject, ObservableObject {
             return
         }
 
-        // Fork: a bookmark's page is put down, not thrown away, and not taken
-        // out of the bookmarks. The row keeps its place and the cross becomes
-        // a minus. Only Remove, from the menu, drops the bookmark.
+        // Fork: a bookmark's page is put down, not thrown away. The row keeps
+        // its place and the cross becomes a minus. The minus removes the bookmark.
         if tab.bookmark != nil {
             tab.rest()
             if activeID == tab.id {
@@ -1213,9 +1212,9 @@ final class Browser: NSObject, ObservableObject {
         rememberSession()
     }
 
-    /// Fork: the minus on a bookmark already put down. The page is forgotten.
-    /// The bookmark stays, and this click does not open it. Remove, in the
-    /// menu, is what takes the bookmark itself away.
+    /// Fork: a bookmark page already put down. The minus removes the bookmark,
+    /// and this drops the page first so it is not left open. The click does
+    /// not open the page.
     func dismissBookmark(_ tab: Tab) {
         guard tab.bookmark != nil, let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
         let wasActive = activeID == tab.id

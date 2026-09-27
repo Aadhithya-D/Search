@@ -16,7 +16,7 @@ in [ROADMAP.md](ROADMAP.md).
 - Closed bookmarks in the column are dimmed, and crossed out unless you turn that off in Settings › Tabs › Cross out closed bookmarks. A pin you have open keeps its icon's colour; the one you are on has a border; one you have put down is grey.
 - With the column on the right, the page keeps the same frame on the top as on the other sides. The traffic lights come back when the pointer is at the top, and they do not remove that frame.
 - Clicking the space's name folds the bookmarks and leaves the one you have open, in its folder. The close button on a bookmark fades the title out from under it.
-- Closing a bookmark's page puts it down: the cross becomes a minus, and the bookmark stays. The minus forgets that page and does not open it. Remove, in the bookmark's menu, is what takes the bookmark out.
+- Closing a bookmark's page puts it down: the cross becomes a minus, and the bookmark stays. The minus removes that bookmark.
 - A long extension name in the site's menu is cut short, so the menu stays a menu's width. The full name is there when the pointer rests on it.
 - Two fingers sideways over the column move from one space to the next and wrap around, the last back to the first. The column on the right takes that gesture too.
 - Settings › General › Search keywords adds a site of your own. Its keyword, then space, in the address field, searches that site: the name stays in the field, just beside the words, and what you type goes where %s is in its address.
