@@ -606,23 +606,33 @@ private struct PinSquare: View {
             if browser.editingPin == tab.id {
                 PinField(browser: browser, tab: tab)
             } else if prefs.glyph == .icons, let icon = tab.icon {
-                Mark(icon: icon, letter: tab.pin ?? "", size: scale * 16 / 34, dim: tab.asleep)
+                Mark(icon: icon, letter: tab.pin ?? "", size: scale * 16 / 34)
             } else {
                 Text(tab.pin ?? "")
                     .font(.system(size: scale * 12 / 34, weight: .medium))
-                    .foregroundStyle((live ? Palette.ink : Palette.quiet).opacity(tab.asleep ? 0.45 : 1))
+                    .foregroundStyle(live ? Palette.ink : Palette.quiet)
             }
         }
+        // Fork: a pin put down is grey. One open keeps its colour, selected or not.
+        .saturation(tab.asleep ? 0 : 1)
+        .opacity(tab.asleep ? 0.45 : 1)
         .frame(width: scale * 16 / 34, height: scale * 16 / 34)
         .frame(width: width, height: height)
         .background {
+            let radius = scale * 9 / 34
             if live {
-                RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous)
+                // Fork: the pin on screen has a fill and a border. One merely
+                // open has neither, so the icon's own colour is what shows.
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(SideTone.chip(scheme, strong: true))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: radius, style: .continuous)
+                            .strokeBorder(Palette.ink.opacity(scheme == .dark ? 0.28 : 0.16), lineWidth: 1)
+                    )
                     .matchedGeometryEffect(id: "live", in: pill)
-            } else {
-                RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous)
-                    .fill(SideTone.chip(scheme, strong: false).opacity(hovering ? 1 : 0.7))
+            } else if hovering {
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(SideTone.chip(scheme, strong: false))
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous))
