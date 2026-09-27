@@ -6,11 +6,11 @@ import Foundation
 // to land on, and they are not a reason to open a new tab.
 
 extension Browser {
-    /// A page still in the row that isn't a pin: a loose tab, or a bookmark's
-    /// own page, asleep or not. Selecting it wakes it. A pin is not a place
-    /// to land.
+    /// A page still in the row that isn't a pin: a loose tab, or a bookmark
+    /// whose page is still open. A pin, and a bookmark put down to a minus,
+    /// are not places to land — landing there would open them again.
     func openPage(besides id: Tab.ID) -> Tab? {
-        tabs.filter { $0.id != id && $0.pin == nil }
+        tabs.filter { $0.id != id && $0.pin == nil && !($0.bookmark != nil && $0.asleep) }
             .max(by: { $0.touched < $1.touched })
     }
 

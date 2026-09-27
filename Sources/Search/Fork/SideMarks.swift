@@ -215,7 +215,7 @@ struct SideMarks: View {
         let opened = path?.contains(node.id) == true || open.contains(node.id)
         let kids = node.children ?? []
         return VStack(alignment: .leading, spacing: SideBar.gap) {
-            line(node, depth: depth, folder: true, opened: opened, live: false, close: nil, newFolder: {
+            line(node, depth: depth, folder: true, opened: opened, live: false, rested: false, close: nil, newFolder: {
                 Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
                     let made = bookmarks.makeFolder(title, into: node.id)
                     open.insert(node.id)
@@ -257,11 +257,15 @@ struct SideMarks: View {
         let pool = tabs ?? browser.tabs
         let openTab = pool.first { $0.bookmark == node.id }
         let liveID = tabs == nil ? browser.activeID : active
+        // Awake, the cross closes the page. Put down, that same spot is a
+        // minus: the bookmark stays, and the minus does not remove it.
+        let awake = openTab?.asleep == false
         return line(
             node, depth: depth, folder: false, opened: false,
             live: openTab?.id == liveID,
-            open: openTab?.asleep == false,
-            close: openTab.map { tab in { browser.close(tab) } },
+            open: awake,
+            rested: openTab?.asleep == true,
+            close: awake ? { if let tab = openTab { browser.close(tab) } } : nil,
             newFolder: live ? {
                 let parent = bookmarks.parent(of: node.id)
                 Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
@@ -287,6 +291,7 @@ struct SideMarks: View {
         opened: Bool,
         live rowLive: Bool,
         open: Bool = false,
+        rested: Bool = false,
         close: (() -> Void)?,
         newFolder: (() -> Void)?,
         act: @escaping () -> Void
@@ -296,7 +301,7 @@ struct SideMarks: View {
             : []
         return Line(
             node: node, depth: depth, folder: folder, opened: opened, live: rowLive, open: open,
-            strike: strike,
+            rested: rested, strike: strike,
             lit: folder && live && aim.mark.folder == node.id,
             act: act, close: close, newFolder: newFolder,
             addPage: folder && live ? { if let tab = browser.active { browser.file(tab, into: node.id) } } : nil,
@@ -365,6 +370,8 @@ struct SideMarks: View {
         let live: Bool
         /// The bookmark's page is open, and this row is not the one on screen.
         let open: Bool
+        /// The page was closed. The cross has become a minus, and the bookmark stays.
+        let rested: Bool
         /// Closed titles are crossed out. Off, they are only dimmed.
         let strike: Bool
         let lit: Bool
@@ -431,12 +438,13 @@ struct SideMarks: View {
             .padding(.trailing, 8)
             .frame(height: SideBar.row)
             .frame(maxWidth: .infinity, alignment: .leading)
-            // The title fades out under the cross, the way a tab's title does,
-            // so the two never share the same letters.
+            // The title fades out under the cross, or under the minus a closed
+            // page keeps, the way a tab's title does.
             .mask {
+                let fade = rested || (hovering && close != nil)
                 ZStack {
-                    Rectangle().opacity(hovering && close != nil ? 0 : 1)
-                    if close != nil {
+                    Rectangle().opacity(fade ? 0 : 1)
+                    if fade {
                         HStack(spacing: 0) {
                             Rectangle()
                             LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
@@ -472,16 +480,20 @@ struct SideMarks: View {
                 // A real view, not a SwiftUI button: the row's own tap was
                 // winning the click, so the cross reopened the page it had
                 // just closed. The target is the whole end of the row.
-                if let close, hovering {
+                // Put down, the cross is a minus. It is not a button: Remove
+                // in the menu is what takes the bookmark away.
+                if rested || (close != nil && hovering) {
                     ZStack {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .semibold))
+                        Image(systemName: rested ? "minus" : "xmark")
+                            .font(.system(size: rested ? 12 : 8, weight: .semibold))
                             .foregroundStyle(Palette.quiet)
                             .frame(width: 15, height: 15)
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .allowsHitTesting(false)
-                        BookmarkClose(act: close)
-                            .frame(width: 32, height: SideBar.row)
+                        if let close, !rested {
+                            BookmarkClose(act: close)
+                                .frame(width: 32, height: SideBar.row)
+                        }
                     }
                     .padding(.trailing, 4)
                 }
@@ -519,6 +531,7 @@ struct SideMarks: View {
             }
             .help(node.url ?? node.title)
             .animation(Motion.quick, value: hovering)
+            .animation(Motion.quick, value: rested)
             .animation(Motion.quick, value: opened)
             .animation(Motion.settle, value: over)
         }

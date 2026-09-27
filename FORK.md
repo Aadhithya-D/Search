@@ -44,6 +44,7 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 19 | Pins and bookmarks show open, selected, and closed | `SideMarks.swift` | `PinSquare` fill and border; `Preferences.strikeClosedMarks` | — |
 | 20 | The page meets the top edge with the column on the right; lights on hover | `ColumnColour.swift` | `Fold` hides the lights until the pointer is at the top | — |
 | 21 | Closing the last page leaves the window open | `LastTabClosed.swift` | `Browser.close` no longer opens a blank tab or closes the window | — |
+| 22 | Closing a bookmark's page leaves a minus; Remove is the menu | `SideMarks.swift` | `Browser.close` puts a bookmark page down; the row shows a minus | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of

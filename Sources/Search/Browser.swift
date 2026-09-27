@@ -1153,6 +1153,22 @@ final class Browser: NSObject, ObservableObject {
             return
         }
 
+        // Fork: a bookmark's page is put down, not thrown away, and not taken
+        // out of the bookmarks. The row keeps its place and the cross becomes
+        // a minus. Only Remove, from the menu, drops the bookmark.
+        if tab.bookmark != nil {
+            tab.rest()
+            if activeID == tab.id {
+                if let row = tabs.last(where: { $0.id != tab.id && $0.bookmark == nil && $0.pin == nil }) {
+                    select(row)
+                } else {
+                    clearPage()
+                }
+            }
+            writeSession(now: true)
+            return
+        }
+
         if tabs.count == 1 {
             remember(tab, at: 0)
             tab.close()
@@ -1179,7 +1195,7 @@ final class Browser: NSObject, ObservableObject {
                (tab.bookmark != nil || neighbor.bookmark != nil),
                let row = tabs.last(where: { $0.bookmark == nil && $0.pin == nil }) {
                 select(row)
-            } else if neighbor.pin == nil {
+            } else if neighbor.pin == nil, !(neighbor.bookmark != nil && neighbor.asleep) {
                 select(neighbor)
             } else if let back = openPage(besides: tab.id) {
                 select(back)
