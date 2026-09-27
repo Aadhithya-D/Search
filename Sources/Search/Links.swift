@@ -19,10 +19,6 @@ final class Links: NSObject, NSApplicationDelegate {
 
     /// Quitting closes every window on the way out; that isn't a window
     /// closed for good, whose tabs would go (see Browsers.closing).
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        MainActor.assumeIsolated { Browsers.quitting = true }
-        return .terminateNow
-    }
 
     func applicationWillTerminate(_ notification: Notification) {
         // Every window, and windows.json (see Windows.swift).
@@ -30,6 +26,27 @@ final class Links: NSObject, NSApplicationDelegate {
         // And the bookmarks or downloads list saved a moment ago, still on
         // their way to the disk.
         Disk.drain()
+    }
+
+    /// Quitting closes every window on the way out; that isn't a window
+    /// closed for good, whose tabs would go (see Browsers.closing).
+    /// Fork: and the session's sign-ins are kept before the app goes
+    /// (Fork/SessionCookies.swift) — asked for, so they wait a moment for it.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let browser = MainActor.assumeIsolated { () -> Browser? in
+            Browsers.quitting = true
+            return Browsers.primary ?? Browsers.front
+        }
+        guard let browser else { return .terminateNow }
+        var answered = false
+        let answer = {
+            guard !answered else { return }
+            answered = true
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        SessionCookies.keep(browser, done: answer)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: answer)
+        return .terminateLater
     }
 
     /// The nearest thing to a crash reporter a browser with no server can
