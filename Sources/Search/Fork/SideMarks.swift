@@ -257,15 +257,18 @@ struct SideMarks: View {
         let pool = tabs ?? browser.tabs
         let openTab = pool.first { $0.bookmark == node.id }
         let liveID = tabs == nil ? browser.activeID : active
-        // Awake, the cross closes the page. Put down, that same spot is a
-        // minus: the bookmark stays, and the minus does not remove it.
+        // Awake, the cross puts the page down and becomes a minus. The minus
+        // forgets that page. Neither one takes the bookmark away, and the
+        // minus does not open it — the title does that.
         let awake = openTab?.asleep == false
         return line(
             node, depth: depth, folder: false, opened: false,
             live: openTab?.id == liveID,
             open: awake,
             rested: openTab?.asleep == true,
-            close: awake ? { if let tab = openTab { browser.close(tab) } } : nil,
+            close: openTab.map { tab in
+                { tab.asleep ? browser.dismissBookmark(tab) : browser.close(tab) }
+            },
             newFolder: live ? {
                 let parent = bookmarks.parent(of: node.id)
                 Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
@@ -479,9 +482,8 @@ struct SideMarks: View {
             .overlay(alignment: .trailing) {
                 // A real view, not a SwiftUI button: the row's own tap was
                 // winning the click, so the cross reopened the page it had
-                // just closed. The target is the whole end of the row.
-                // Put down, the cross is a minus. It is not a button: Remove
-                // in the menu is what takes the bookmark away.
+                // just closed. The minus is the same kind of target. Without
+                // it, the click falls through and opens the bookmark.
                 if rested || (close != nil && hovering) {
                     ZStack {
                         Image(systemName: rested ? "minus" : "xmark")
@@ -490,7 +492,7 @@ struct SideMarks: View {
                             .frame(width: 15, height: 15)
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .allowsHitTesting(false)
-                        if let close, !rested {
+                        if let close {
                             BookmarkClose(act: close)
                                 .frame(width: 32, height: SideBar.row)
                         }
@@ -561,7 +563,13 @@ private struct BookmarkClose: NSViewRepresentable {
             return super.hitTest(point)
         }
 
-        override func mouseDown(with event: NSEvent) { act() }
+        override func mouseDown(with event: NSEvent) {}
+        override func mouseUp(with event: NSEvent) {
+            // On the way up, so the row underneath never also takes the click
+            // and opens the page this button just closed.
+            guard bounds.contains(convert(event.locationInWindow, from: nil)) else { return }
+            act()
+        }
     }
 }
 
