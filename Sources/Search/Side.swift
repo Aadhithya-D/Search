@@ -18,8 +18,6 @@ struct SideBar: View {
     @Namespace private var pill
 
     @State private var landing = false
-    /// The width the column had when the edge was picked up.
-    @State private var grabbed: CGFloat?
     @State private var onEdge = false
 
     /// A pin, picked up out of the grid — a separate state from the loose
@@ -165,28 +163,32 @@ struct SideBar: View {
     /// double-click it to put it back. The hairline darkens under the pointer
     /// so the edge says it can be taken before it is.
     private var edge: some View {
+        // Fork: the cursor, the drag and the double-click are a real view's
+        // (Fork/ColumnEdge.swift); the hairline is drawn under it.
         Rectangle()
-            .fill(Palette.ink.opacity(onEdge || grabbed != nil ? 0.18 : 0))
-            .frame(width: onEdge || grabbed != nil ? 2 : 1)
-            .frame(width: 9)
-            .contentShape(Rectangle())
-            .onHover { over in
-                onEdge = over
-                if over { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        if grabbed == nil { grabbed = prefs.sideWidth }
-                        let delta = onRight ? -value.translation.width : value.translation.width
-                        let wanted = (grabbed ?? prefs.sideWidth) + delta
+            .fill(Palette.ink.opacity(onEdge ? 0.18 : 0))
+            .frame(width: onEdge ? 2 : 1)
+            .frame(width: 10)
+            .allowsHitTesting(false)
+            .overlay {
+                ColumnEdge(
+                    right: onRight,
+                    width: { prefs.sideWidth },
+                    resize: { wanted in
+                        // Pulled well past its narrowest, the column folds
+                        // away, as ⌘S does, and keeps the width it had.
+                        if wanted < Metrics.sideMin - 60 {
+                            guard !browser.folded else { return }
+                            browser.peeking = false
+                            withAnimation(Motion.glide) { browser.folded = true }
+                            return
+                        }
                         prefs.sideWidth = min(Metrics.sideMax, max(Metrics.sideMin, wanted))
-                    }
-                    .onEnded { _ in grabbed = nil }
-            )
-            .modifier(OneClick(double: true) {
-                withAnimation(Motion.settle) { prefs.sideWidth = Metrics.side }
-            })
+                    },
+                    reset: { withAnimation(Motion.settle) { prefs.sideWidth = Metrics.side } },
+                    hover: { onEdge = $0 }
+                )
+            }
             .animation(Motion.quick, value: onEdge)
     }
 

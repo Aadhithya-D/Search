@@ -221,6 +221,10 @@ struct Fold: View {
         .onChange(of: browser.bookmarksOpen) { _, open in
             if !open, !inside, browser.peeking { peek(false) }
         }
+        // Fork: the same for the address typed into the card (Fork/AddressLetGo.swift).
+        .onChange(of: browser.editing) { _, editing in
+            if !editing, !inside, browser.peeking { peek(false) }
+        }
     }
 
     /// A popover opened from a button in the column, still open: the
@@ -374,7 +378,7 @@ struct Fold: View {
             guard leaving == nil else { return }
             let going = DispatchWorkItem {
                 leaving = nil
-                guard browser.editingTab == nil, !holding else { return }
+                guard browser.editingTab == nil, !holding, !browser.editing else { return }  // Fork: the card's address
                 browser.peek(false)
             }
             leaving = going
