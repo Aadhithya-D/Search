@@ -240,6 +240,7 @@ struct SideMarks: View {
         return line(
             node, depth: depth, folder: false, opened: false,
             live: openTab?.id == liveID,
+            open: openTab?.asleep == false,
             close: openTab.map { tab in { browser.close(tab) } },
             newFolder: live ? {
                 let parent = bookmarks.parent(of: node.id)
@@ -265,6 +266,7 @@ struct SideMarks: View {
         folder: Bool,
         opened: Bool,
         live rowLive: Bool,
+        open: Bool = false,
         close: (() -> Void)?,
         newFolder: (() -> Void)?,
         act: @escaping () -> Void
@@ -273,7 +275,8 @@ struct SideMarks: View {
             ? Bookmarks.folders(bookmarks.roots).filter { !Bookmarks.holds($0.node.id, node) }
             : []
         return Line(
-            node: node, depth: depth, folder: folder, opened: opened, live: rowLive,
+            node: node, depth: depth, folder: folder, opened: opened, live: rowLive, open: open,
+            strike: browser.prefs.strikeClosedMarks, greys: browser.prefs.greysClosed,
             lit: folder && live && aim.mark.folder == node.id,
             act: act, close: close, newFolder: newFolder,
             addPage: folder && live ? { if let tab = browser.active { browser.file(tab, into: node.id) } } : nil,
@@ -340,6 +343,12 @@ struct SideMarks: View {
         let folder: Bool
         let opened: Bool
         let live: Bool
+        /// The bookmark's page is open, and this row is not the one on screen.
+        let open: Bool
+        /// Closed titles are crossed out; off, they are only dimmed.
+        let strike: Bool
+        /// Closed pages' icons are grey; off, only lighter.
+        let greys: Bool
         let lit: Bool
         let act: () -> Void
         let close: (() -> Void)?
@@ -358,12 +367,19 @@ struct SideMarks: View {
         @State private var over = false
         @Environment(\.colorScheme) private var scheme
 
-        /// The same quiet as a tab you are not on. A folder stays readable;
-        /// a page does not, until it is the one open.
+        /// From Adithya Sakaray's PR #1: the page on screen is full ink and
+        /// bold, one open beside it full ink, and a closed one dim — so the
+        /// folder reads as places, and the open ones stand out.
         private var title: Color {
             if folder { return hovering ? Palette.ink : Palette.ink.opacity(0.9) }
-            if live { return Palette.ink }
-            return hovering ? Palette.ink : Palette.ink.opacity(0.78)
+            if live || open { return Palette.ink }
+            return Palette.ink.opacity(hovering ? 0.62 : 0.4)
+        }
+
+        private var weight: Font.Weight {
+            if live { return .semibold }
+            if open || folder { return .medium }
+            return .regular
         }
 
         var body: some View {
@@ -376,10 +392,13 @@ struct SideMarks: View {
                         letter: String((node.host ?? "•").prefix(1)).uppercased(),
                         size: 15
                     )
-                    .opacity(live ? 1 : 0.72)
+                    // A closed page's icon is grey, the way a put-down pin is.
+                    .saturation(live || open || !greys ? 1 : 0)
+                    .opacity(live || open ? 1 : 0.55)
                 }
                 Text(node.title)
-                    .font(.system(size: 12.5))
+                    .font(.system(size: 12.5, weight: weight))
+                    .strikethrough(!folder && !live && !open && strike, color: title)
                     .foregroundStyle(title)
                     .lineLimit(1)
                     .truncationMode(.tail)
