@@ -666,9 +666,10 @@ private struct PinSquare: View {
         })
         // Put down, like ⌘W: close() is what knows a pin isn't removed.
         .overlay { MiddleClick { browser.close(tab) } }
-        .onHover { hovering = $0 }
+        .onHover { hovering = $0; TabPreview.hover(tab, over: $0, in: browser) }
         .contextMenu { TabMenu(browser: browser, tab: tab, close: { browser.close(tab) }) }
-        .help(tab.label)
+        // The preview names it (Fork/TabPreview.swift); a tooltip on top of it
+        // said the same over the card.
         .animation(Motion.quick, value: hovering)
         .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
@@ -799,7 +800,8 @@ private struct SideRow: View {
             browser.select(tab)
         })
         .overlay { MiddleClick(act: close) }
-        .onHover { hovering = $0 }
+        // Fork: the tab's preview beside the column (Fork/TabPreview.swift).
+        .onHover { hovering = $0; TabPreview.hover(tab, over: $0, in: browser) }
         .contextMenu { TabMenu(browser: browser, tab: tab, close: close) }
         .animation(Motion.quick, value: hovering)
         .animation(Motion.glide, value: editing)

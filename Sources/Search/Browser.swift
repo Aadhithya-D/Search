@@ -1719,6 +1719,7 @@ final class Browser: NSObject, ObservableObject {
     }
 
     func select(_ tab: Tab, floatPrevious: Bool = true) {
+        TabPreview.hide()  // Fork: Fork/TabPreview.swift
         // A folded group opens for the tab you go to in it. With groups off,
         // they are kept as they were and nothing about them is saved.
         if prefs.usesTabGroups, let id = tab.groupID,

@@ -528,6 +528,8 @@ final class Tab: ObservableObject, Identifiable {
     private var memory: Any?
     /// The last picture of that page, compressed, for the moment it wakes.
     private var picture: Data?
+    /// Fork: that picture, for the tab's preview (Fork/TabPreview.swift).
+    var coverPicture: NSImage? { picture.flatMap(NSImage.init(data:)) ?? cover }
     /// That picture, over the stage while the page is rebuilt underneath it:
     /// coming back to a tab that slept starts from what you left, not white.
     @Published private(set) var cover: NSImage?
