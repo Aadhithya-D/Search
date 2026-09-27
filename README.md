@@ -1,5 +1,17 @@
 # Search
 
+> **This is a fork** of [driceroland/Search](https://github.com/driceroland/Search),
+> kept on top of upstream by [Aadhithya-D](https://github.com/Aadhithya-D). It adds
+> an Arc-style sidebar — spaces with their own colours and bookmarks, the address
+> in the column, a floating folded column — tab previews, profile import from
+> Chromium browsers, and fixes; [FORK.md](FORK.md) lists every change and where
+> it lives. Builds are on this fork's
+> [Releases](https://github.com/Aadhithya-D/Search/releases) page: not signed or
+> notarized, so right-click › Open the first time, and they don't update
+> themselves. Contributing: fork code in `Sources/Search/Fork/`, new behaviour
+> behind a switch, one feature per commit — see [CONTRIBUTING.md](CONTRIBUTING.md).
+> Everything below is upstream's README.
+
 A small, fast, quiet web browser for the Mac, by [Office Commun](https://officecommun.com).
 
 ![Search, with its tabs down the left and a page taking the rest of the window](.github/screenshot.png)

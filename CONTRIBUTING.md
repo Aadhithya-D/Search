@@ -1,5 +1,36 @@
 # Contributing
 
+> **This fork.** Everything below is upstream's and still applies. On top of
+> it, a change to this fork is expected to follow these rules — a pull request
+> that doesn't is reworked or declined:
+>
+> 1. **Fork code lives in `Sources/Search/Fork/`.** New logic goes in a file
+>    there, one file per feature. An upstream file only gets the smallest hook
+>    that calls into it, marked with a `// Fork:` comment that names the file.
+>    Logic written straight into `Browser.swift`, `Side.swift` and the like is
+>    what makes every upstream sync a conflict.
+> 2. **New behaviour is optional.** Anything that changes how the browser
+>    looks or behaves comes with a switch in Settings, and is off by default
+>    unless it has been agreed otherwise. Fixes don't need one.
+> 3. **One feature per commit, and every commit builds.** A feature, its
+>    fixes and its follow-ups are one commit (fold fix-ups in with
+>    `git rebase -i --autosquash`); two features are two commits. Each commit
+>    passes `swift build` on its own, so any one can be dropped or rebased
+>    onto upstream.
+> 4. **Messages say what changed, in plain words.** A subject line of what
+>    the browser now does ("Clear, above New Tab, closes the loose tabs"),
+>    then a body with the fork files and the hooks.
+> 5. **`FORK.md` gets a row** for each feature: its fork files, its hooks in
+>    upstream files, and any open upstream pull request it overlaps.
+> 6. **Upstream's files stay upstream's.** Don't edit `CHANGELOG.md` or
+>    `ROADMAP.md`; the fork's notes go in `FORK.md`.
+> 7. **Nothing leaves the Mac, nothing weakens what's kept.** No new network
+>    calls, and passwords, cookies and anything imported stay in the keychain
+>    or WebKit's own stores, as the rest of the app does.
+>
+> Open pull requests against this fork's `main`. See [FORK.md](FORK.md) for
+> how it's kept on upstream.
+
 This is a small, mostly-solo project, reviewed the same way it's written. Contributions are welcome, but a few things make one land faster.
 
 ## Before writing code
