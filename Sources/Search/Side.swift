@@ -739,7 +739,8 @@ private struct SideRow: View {
 
                 ZStack {
                     if tab.loading {
-                        Ring().transition(.opacity)
+                        // Fork: filling with the page (Fork/Loading.swift).
+                        ProgressRing(tab: tab).transition(.opacity)
                     } else {
                         Speaker(tab: tab).transition(.opacity)
                     }

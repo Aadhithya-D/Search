@@ -423,6 +423,8 @@ struct ContentView: View {
                             .onTapGesture { browser.dismiss() }
                     }
                 }
+                // Fork: the page's load, as a hairline over its top (Fork/Loading.swift).
+                .overlay(alignment: .top) { LoadLine(tab: tab).id(tab.id) }
                 .overlay {
                     if browser.prefs.showsLinks { LinkBubble(status: browser.linkStatus) }
                 }
