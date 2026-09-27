@@ -60,6 +60,8 @@ final class Browser: NSObject, ObservableObject {
             // go on to be looked for on this one.
             invalidateFindPage(retryOnActiveTab: true)
             guard let old = oldValue else { return }
+            // Fork: a keyword search belongs to the field you were typing in.
+            searchAlias = nil
             linkStatus.dismiss()
             let left = tabs.first { $0.id == old }
             left?.touch()
@@ -306,6 +308,9 @@ final class Browser: NSObject, ObservableObject {
     /// list under the field and the grey ending inside it are both just
     /// answers to this string.
     @Published var typed = "" { didSet { guess() } }
+    /// Fork: the field is searching this site, after its keyword and a space
+    /// (Fork/SearchKeywords.swift).
+    @Published var searchAlias: SearchAlias?
 
     let history = Shared.history
     /// What the field is offering, best first.
@@ -3962,6 +3967,7 @@ final class Browser: NSObject, ObservableObject {
         reviewing = false
         cancelTabEdit()
         summoning = true
+        clearKeyword()
         typed = ""
         editing = true
         focusRequest += 1
@@ -3974,6 +3980,20 @@ final class Browser: NSObject, ObservableObject {
             // The most recent page is already chosen, so ⌘K then Return is the
             // whole gesture.
             picked = offers.isEmpty ? nil : 0
+            return
+        }
+
+        // Fork: the keyword has already chosen the site. What is typed is the
+        // search, not an address.
+        if let alias = searchAlias {
+            let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !words.isEmpty, let asked = Engine.url(for: words, template: alias.template) {
+                offers = [Suggestion(key: words, title: alias.name, url: asked, kind: .search)]
+            } else {
+                offers = []
+            }
+            ending = nil
+            picked = nil
             return
         }
 
@@ -4114,6 +4134,7 @@ final class Browser: NSObject, ObservableObject {
     /// and Escape puts it back.
     func edit() {
         summoning = false
+        clearKeyword()  // Fork: Fork/SearchKeywords.swift
         // Never a name and password written into the address: they would be
         // on screen, and in whatever you copy from here.
         typed = active?.address.map { url -> String in
@@ -4149,6 +4170,7 @@ final class Browser: NSObject, ObservableObject {
             close(tab)
             return
         }
+        clearKeyword()  // Fork: Fork/SearchKeywords.swift
         // A blank tab has nothing behind the field to go back to.
         guard active?.isBlank == false else { return }
         editing = false
@@ -4177,6 +4199,7 @@ final class Browser: NSObject, ObservableObject {
             select(tab)
             editing = false
             typed = ""
+            clearKeyword()
             return
         }
 
@@ -4205,7 +4228,10 @@ final class Browser: NSObject, ObservableObject {
         }
 
         let target: URL?
-        if let picked, offers.indices.contains(picked) {
+        if let alias = searchAlias, picked == nil {
+            let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            target = Engine.url(for: words, template: alias.template)
+        } else if let picked, offers.indices.contains(picked) {
             target = offers[picked].url
         } else if ending != nil {
             target = Address.url(from: completed)
@@ -4217,6 +4243,7 @@ final class Browser: NSObject, ObservableObject {
             refusals += 1
             return
         }
+        clearKeyword()  // Fork: Fork/SearchKeywords.swift
         if aside {
             // Opened behind the page by hand, as a ⌘-clicked link is: it may
             // wait to load (Settings › Tabs › Load background tabs…).
