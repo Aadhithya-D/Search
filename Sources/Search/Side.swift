@@ -523,7 +523,7 @@ struct SideBar: View {
                 compact: marksFolded.contains(browser.spaceID)
             )
             .transition(.opacity)
-            rule
+            looseRule
             newTab
             loose
         }
@@ -535,6 +535,21 @@ struct SideBar: View {
     private var newTab: some View {
         Quiet(icon: "plus", title: "New Tab", height: SideBar.row) { browser.newTab() }
             .padding(.top, SideBar.gap)
+    }
+
+    /// The hairline above New Tab, with Clear at its right. Only the loose
+    /// tabs under New Tab are cleared. Pins and bookmarks stay.
+    private var looseRule: some View {
+        HStack(spacing: 8) {
+            Rectangle()
+                .fill(Palette.ink.opacity(0.09))
+                .frame(height: 1)
+            if !looseTabs.isEmpty {
+                ClearLoose(act: { browser.clearLoose() })
+            }
+        }
+        .padding(.horizontal, SideBar.inset)
+        .frame(height: SideBar.ruleHeight)
     }
 
     /// One small door at the bottom: the settings.
@@ -823,6 +838,28 @@ private struct SideRow: View {
 }
 
 /// White on the space's colour: the tab you are on, and the row under the pointer.
+
+/// Clear, at the right of the line above New Tab.
+private struct ClearLoose: View {
+    let act: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: act) {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 8, weight: .bold))
+                Text("Clear")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(hovering ? Palette.ink.opacity(0.85) : Palette.quiet)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Close the other tabs. Click again to close the one you are on.")
+        .animation(Motion.quick, value: hovering)
+    }
+}
 
 /// A row that is an action rather than a page. Quiet until the pointer is on it.
 struct Quiet: View {

@@ -1231,6 +1231,29 @@ final class Browser: NSObject, ObservableObject {
         writeSession(now: true)
     }
 
+    /// Fork: Clear, above the loose tabs. The first press drops every tab
+    /// under New Tab except the one on screen. The next press drops that one
+    /// too. Pins and bookmarks are not tabs of that list.
+    func clearLoose() {
+        let loose = tabs.filter { $0.pin == nil && $0.bookmark == nil }
+        guard !loose.isEmpty else { return }
+        let staying: Tab.ID? = loose.count > 1 ? loose.first { $0.id == activeID }?.id : nil
+        let going = loose.filter { $0.id != staying }
+        for tab in going {
+            if floating == tab.id { land() }
+            if let index = tabs.firstIndex(where: { $0.id == tab.id }) {
+                remember(tab, at: index)
+            }
+            tab.close()
+        }
+        let gone = Set(going.map(\.id))
+        tabs.removeAll { gone.contains($0.id) }
+        if let id = activeID, gone.contains(id) {
+            clearPage()
+        }
+        writeSession(now: true)
+    }
+
     /// Everything but this one. Pinned tabs are put down rather than removed —
     /// they are not open pages so much as places kept.
     func closeOthers(but keep: Tab) {
