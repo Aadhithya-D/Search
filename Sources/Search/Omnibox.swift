@@ -59,9 +59,17 @@ struct Omnibox: View {
     }
 
     private var field: some View {
-        AddressField(browser: browser, prompt: browser.prefs.searchPrompt)
+        HStack(spacing: 8) {
+            if let name = browser.searchAlias?.name {
+                KeywordMark(name: name)
+            }
+            AddressField(
+                browser: browser,
+                prompt: browser.searchAlias == nil ? browser.prefs.searchPrompt : "Enter search terms"
+            )
             .frame(height: 22)
-            .padding(.horizontal, 22)
+        }
+        .padding(.horizontal, 22)
             .padding(.vertical, 14)
             .background {
                 ZStack {
@@ -356,6 +364,18 @@ struct AddressField: NSViewRepresentable {
             guard let field = note.object as? NSTextField else { return }
             let text = field.stringValue
 
+            // Fork: "y " is not an address. The y was a keyword, and the field
+            // is now that site's search.
+            if !browser.summoning, browser.searchAlias == nil, let taken = browser.prefs.takeKeyword(text) {
+                browser.engageKeyword(taken.alias, query: taken.rest)
+                let shown = browser.completed
+                field.stringValue = shown
+                synced = shown
+                deleting = false
+                select(from: browser.typed.count, in: field)
+                return
+            }
+
             browser.typed = text
             guard !deleting, let ending = browser.ending else {
                 if deleting { browser.stopCompleting() }
@@ -398,8 +418,16 @@ struct AddressField: NSViewRepresentable {
             case #selector(NSResponder.moveUp(_:)):
                 browser.walk(-1)
                 return true
-            case #selector(NSResponder.deleteBackward(_:)),
-                 #selector(NSResponder.deleteForward(_:)):
+            case #selector(NSResponder.deleteBackward(_:)):
+                // Fork: nothing left to delete takes the keyword back, so the
+                // search can be left the way it was entered.
+                if browser.searchAlias != nil, textView.string.isEmpty {
+                    browser.releaseKeyword(restoring: browser.searchAlias?.keyword ?? "")
+                    return true
+                }
+                deleting = true
+                return false
+            case #selector(NSResponder.deleteForward(_:)):
                 deleting = true
                 return false
             default:

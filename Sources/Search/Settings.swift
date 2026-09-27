@@ -200,6 +200,8 @@ struct SettingsPanel: View {
                 .padding(.bottom, 11)
             }
             Rule()
+            SearchKeywordsSettings(prefs: prefs)
+            Rule()
             Line("Appearance", "Light, dark, or whatever the Mac is doing — pages follow it too") {
                 Segmented(options: Look.allCases.map { ($0, $0.title) }, selection: $prefs.look)
             }

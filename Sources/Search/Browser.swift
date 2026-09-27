@@ -15,6 +15,8 @@ final class Browser: NSObject, ObservableObject {
             // gone unwatched long enough to sleep is counted from here, not
             // from when it was first picked.
             guard oldValue != activeID, let old = oldValue else { return }
+            // Fork: a keyword search belongs to the field you were typing in.
+            searchAlias = nil
             linkStatus.dismiss()
             tabs.first { $0.id == old }?.touch()
         }
@@ -98,6 +100,8 @@ final class Browser: NSObject, ObservableObject {
     /// list under the field and the grey ending inside it are both just
     /// answers to this string.
     @Published var typed = "" { didSet { guess() } }
+    /// Fork: the field is searching this site, after its keyword and a space.
+    @Published var searchAlias: SearchAlias?
 
     let history = History()
     /// What the field is offering, best first.
@@ -1789,6 +1793,7 @@ final class Browser: NSObject, ObservableObject {
         reviewing = false
         cancelTabEdit()
         summoning = true
+        clearKeyword()
         typed = ""
         editing = true
         focusRequest += 1
@@ -1801,6 +1806,20 @@ final class Browser: NSObject, ObservableObject {
             // The most recent page is already chosen, so ⌘K then Return is the
             // whole gesture.
             picked = offers.isEmpty ? nil : 0
+            return
+        }
+
+        // Fork: the keyword has already chosen the site. What is typed is the
+        // search, not an address.
+        if let alias = searchAlias {
+            let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !words.isEmpty, let asked = Engine.url(for: words, template: alias.template) {
+                offers = [Suggestion(key: words, title: alias.name, url: asked, kind: .search)]
+            } else {
+                offers = []
+            }
+            ending = nil
+            picked = nil
             return
         }
 
@@ -1870,6 +1889,7 @@ final class Browser: NSObject, ObservableObject {
         editing = false
         typed = ""
         picked = nil
+        clearKeyword()
     }
 
     /// A backspace means the ending was not wanted. Recomputing it on the very
@@ -1901,6 +1921,7 @@ final class Browser: NSObject, ObservableObject {
     /// and Escape puts it back.
     func edit() {
         summoning = false
+        clearKeyword()
         typed = active?.address?.absoluteString ?? ""
         // Fork: the address lives in the column. Folded, it has to come out
         // before the field can take the key.
@@ -1915,6 +1936,7 @@ final class Browser: NSObject, ObservableObject {
     func dismiss() {
         summoning = false
         cycling = false
+        clearKeyword()
         // A blank tab has nothing behind the field to go back to.
         guard active?.isBlank == false else { return }
         editing = false
@@ -1933,6 +1955,7 @@ final class Browser: NSObject, ObservableObject {
             select(tab)
             editing = false
             typed = ""
+            clearKeyword()
             return
         }
 
@@ -1949,7 +1972,10 @@ final class Browser: NSObject, ObservableObject {
         }
 
         let target: URL?
-        if let picked, offers.indices.contains(picked) {
+        if let alias = searchAlias, picked == nil {
+            let words = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+            target = Engine.url(for: words, template: alias.template)
+        } else if let picked, offers.indices.contains(picked) {
             target = offers[picked].url
         } else if ending != nil {
             target = Address.url(from: completed)
@@ -1962,6 +1988,7 @@ final class Browser: NSObject, ObservableObject {
             return
         }
         // Fork: no page up — the address opens one (Fork/LastTabClosed.swift).
+        clearKeyword()
         show(url)
         editing = false
         typed = ""

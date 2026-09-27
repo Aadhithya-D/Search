@@ -48,9 +48,17 @@ struct SideAddress: View {
     private var pill: some View {
         HStack(spacing: 0) {
             if typingHere {
-                AddressField(browser: browser, point: 12.5, prompt: browser.prefs.searchPrompt)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .frame(height: 16)
+                if let name = browser.searchAlias?.name {
+                    KeywordMark(name: name)
+                        .padding(.trailing, 6)
+                }
+                AddressField(
+                    browser: browser,
+                    point: 12.5,
+                    prompt: browser.searchAlias == nil ? browser.prefs.searchPrompt : "Enter search terms"
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(height: 16)
             } else {
                 Text(shown)
                     .font(.system(size: 12.5))

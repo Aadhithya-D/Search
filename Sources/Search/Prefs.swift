@@ -72,6 +72,15 @@ final class Preferences: ObservableObject {
     @Published var customEngine: String {
         didSet { store.set(customEngine, forKey: "search.custom") }
     }
+    /// Fork: keyword searches. A keyword and a space in the address field
+    /// searches that site (Fork/SearchKeywords.swift).
+    @Published var searchAliases: [SearchAlias] {
+        didSet {
+            if let data = try? JSONEncoder().encode(searchAliases) {
+                store.set(data, forKey: "search.aliases")
+            }
+        }
+    }
     /// Tabs nobody has looked at for half an hour give their page back and
     /// keep where they were. On unless turned off.
     @Published var sleepsTabs: Bool {
@@ -245,6 +254,7 @@ final class Preferences: ObservableObject {
         glyph = store.string(forKey: "glyph").flatMap(Glyph.init) ?? .letters
         engine = store.string(forKey: "search.engine").flatMap(Engine.init) ?? .standard
         customEngine = store.string(forKey: "search.custom") ?? ""
+        searchAliases = (store.data(forKey: "search.aliases")).flatMap { try? JSONDecoder().decode([SearchAlias].self, from: $0) } ?? []
         sleepsTabs = store.object(forKey: "tabs.sleep") as? Bool ?? true
         showsReading = store.object(forKey: "tabs.reading") as? Bool ?? true
         shielded = store.object(forKey: "shield") as? Bool ?? true

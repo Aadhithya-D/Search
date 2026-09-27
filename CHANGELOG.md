@@ -19,6 +19,7 @@ in [ROADMAP.md](ROADMAP.md).
 - Closing a bookmark's page puts it down: the cross becomes a minus, and the bookmark stays. Remove, in the bookmark's menu, is what takes it out.
 - A long extension name in the site's menu is cut short, so the menu stays a menu's width. The full name is there when the pointer rests on it.
 - Two fingers sideways over the column move from one space to the next and wrap around, the last back to the first. The column on the right takes that gesture too.
+- Settings › General › Search keywords adds a site of your own. Its keyword, then space, in the address field, searches that site: the name stays in the field and what you type goes where %s is in its address.
 - Closing the last page leaves the window open, with nothing in it. ⌘T or New Tab opens one. The red light and ⌘Q still quit.
 - Links from other apps can open in a small window of their own: the page, the site and Open in Search (⌘O), which moves it into your tabs as it is, after the pins and without loading it again. Escape or ⌘W closes it. Off unless you turn it on in Settings › General › Open links from other apps in a small window. The idea came from [@K-NRS](https://github.com/K-NRS) ([#227](https://github.com/driceroland/Search/pull/227)), after Arc's Little Arc.
 
