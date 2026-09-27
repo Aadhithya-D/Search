@@ -157,7 +157,9 @@ struct SiteControls: View {
             }
         }
         .padding(.vertical, MenuMetrics.pad)
-        .frame(minWidth: 240)
-        .fixedSize()
+        // A menu's width, not the longest extension's. Names that don't fit
+        // are cut (Fork/ExtensionsInline.swift).
+        .frame(width: 260)
+        .fixedSize(horizontal: true, vertical: true)
     }
 }
