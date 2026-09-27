@@ -41,6 +41,9 @@ Base: upstream `491f321` ("Roadmap: pop-ups named by their site are done").
 | 16 | Site icons follow the column's tone | `IconSurface.swift` | `Favicons.dark` asks `surfaceDark`; `Browser.follow` calls `followIconSurface`; `relook` not private | — |
 | 17 | The column's bookmarks fold under the space's name | `SideMarks.swift` (SectionHeader) | `SideBar.marksFolded`; rows, preview and `rowsEnd` skip a folded list | — |
 | 18 | A site icon with nothing visible in it is no icon | `IconInk.swift` | `Favicons.square` and `known` check `hasInk` | — |
+| 19 | Pins and bookmarks show open, selected, and closed | `SideMarks.swift` | `PinSquare` fill and border; `Preferences.strikeClosedMarks` | — |
+| 20 | The page meets the top edge with the column on the right; lights on hover | `ColumnColour.swift` | `Fold` hides the lights until the pointer is at the top | — |
+| 21 | Closing the last page leaves the window open | `LastTabClosed.swift` | `Browser.close` no longer opens a blank tab or closes the window | — |
 | 14 | Import another browser's profiles, each into a space | `ProfileImport.swift` | `Chromium.Source.profile`; Aside in `Chromium.known`; `read(_:passphrase:)`; `safeStorage`/`stretch` not private; File › Import from Another Browser…; `./bench profiles` | #215, #261 |
 
 Upstream PR numbers are open pull requests on driceroland/Search as of

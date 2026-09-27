@@ -171,6 +171,11 @@ final class Preferences: ObservableObject {
     @Published var bookmarksBar: Bool {
         didSet { store.set(bookmarksBar, forKey: "bookmarks.bar") }
     }
+    /// Fork: a closed bookmark in the column is crossed out, as well as dimmed.
+    /// Off, it is only dimmed (Fork/SideMarks.swift). On unless turned off.
+    @Published var strikeClosedMarks: Bool {
+        didSet { store.set(strikeClosedMarks, forKey: "bookmarks.strike") }
+    }
     @Published var showsLinks: Bool {
         didSet {
             store.set(showsLinks, forKey: "links.show")
@@ -283,6 +288,7 @@ final class Preferences: ObservableObject {
         peeksLinks = store.bool(forKey: "links.peek")
         littleLinks = store.bool(forKey: "links.little")
         bookmarksBar = store.bool(forKey: "bookmarks.bar")
+        strikeClosedMarks = store.object(forKey: "bookmarks.strike") as? Bool ?? true
         let links = store.bool(forKey: "links.show")
         showsLinks = links
         HoveredLink.on = links

@@ -872,9 +872,12 @@ final class Browser: NSObject, ObservableObject {
             adopt(Tab())
             return
         }
+        releaseForeignBookmarks()
+        // Fork: a session left with no page open comes back that way. Pins
+        // stay asleep in the grid (Fork/LastTabClosed.swift).
+        guard saved.active >= 0 else { return }
         let here = opened ?? tabs[0]
         activeID = here.id
-        releaseForeignBookmarks()
         // Only the one you were looking at actually loads.
         here.wake()
     }
@@ -1014,7 +1017,8 @@ final class Browser: NSObject, ObservableObject {
                         bookmark: tab.bookmark
                     )
                 },
-                active: tabs.firstIndex { $0.id == activeID } ?? 0
+                // Fork: nothing on screen is kept as none, not as the first pin.
+                active: activeID.flatMap { id in tabs.firstIndex { $0.id == id } } ?? -1
             )
         )
     }
@@ -1119,8 +1123,9 @@ final class Browser: NSObject, ObservableObject {
         typed = ""
     }
 
-    /// ⌘W, or the cross on the tab. Closing the last one leaves a blank tab
-    /// behind; closing that blank tab closes the window.
+    /// ⌘W, or the cross on the tab. Closing the last page leaves the window
+    /// open with nothing in it (Fork/LastTabClosed.swift). The red light and
+    /// ⌘Q still quit.
     func close(_ tab: Tab) {
         guard let index = tabs.firstIndex(where: { $0.id == tab.id }) else { return }
 
@@ -1137,52 +1142,49 @@ final class Browser: NSObject, ObservableObject {
             // Ordinary tabs first. Falling back to the most recent tab of any
             // kind meant closing one pin landed you on another pin, and ⌘W
             // bounced between the two instead of getting you out of them.
-            let others = tabs.filter { $0.id != tab.id && !$0.asleep }
-            let loose = others.filter { $0.pin == nil && $0.bookmark == nil }
-            if let back = (loose.isEmpty ? others : loose).max(by: { $0.touched < $1.touched }) {
+            // Fork: with no page left, the window stays empty rather than
+            // growing a new tab (Fork/LastTabClosed.swift).
+            if let back = openPage(besides: tab.id) {
                 select(back)
-            } else {
-                newTab()
+            } else if activeID == tab.id {
+                clearPage()
             }
             writeSession(now: true)
             return
         }
 
         if tabs.count == 1 {
-            if tab.isBlank {
-                NSApp.keyWindow?.performClose(nil)
-            } else {
-                let fresh = Tab()
-                remember(tab, at: 0)
-                tab.close()
-                adopt(fresh)
-                tabs = [fresh]
-                activeID = fresh.id
-                typed = ""
-            }
+            remember(tab, at: 0)
+            tab.close()
+            tabs = []
+            clearPage()
+            rememberSession()
             return
         }
 
         remember(tab, at: index)
         tab.close()
         tabs.remove(at: index)
-        // Fork: the last open page closed — a new tab, not a pin or a
-        // bookmark's page (Fork/LastTabClosed.swift).
-        if activeID == tab.id, closesLastPage(tab) {
-            newTab()
-        } else if activeID == tab.id {
+        if activeID == tab.id {
             // The neighbour on the right, or the last one if there is no
             // right — through select(), same as everywhere else you land on
             // a tab, so one that was never built yet actually wakes up
             // instead of sitting there blank until a manual reload.
             // Closing a bookmark, or the tab beside one, lands on a tab in
             // the row when there is one — not on another bookmark.
+            // Fork: a pin is not that neighbour, and no page left means an
+            // empty window, not a new tab (Fork/LastTabClosed.swift).
             let neighbor = tabs[min(index, tabs.count - 1)]
-            if (tab.bookmark != nil || neighbor.bookmark != nil),
-               let row = tabs.last(where: { $0.bookmark == nil }) {
+            if neighbor.pin == nil,
+               (tab.bookmark != nil || neighbor.bookmark != nil),
+               let row = tabs.last(where: { $0.bookmark == nil && $0.pin == nil }) {
                 select(row)
-            } else {
+            } else if neighbor.pin == nil {
                 select(neighbor)
+            } else if let back = openPage(besides: tab.id) {
+                select(back)
+            } else {
+                clearPage()
             }
         }
         rememberSession()
@@ -1481,7 +1483,8 @@ final class Browser: NSObject, ObservableObject {
             refusals += 1
             return
         }
-        (active ?? tabs.first)?.go(to: url)
+        // Fork: no page up — the address opens one (Fork/LastTabClosed.swift).
+        show(url)
         editing = false
         typed = ""
     }
@@ -1516,7 +1519,8 @@ final class Browser: NSObject, ObservableObject {
         }
         let filed = row.filter { $0.bookmark != nil }
         if !filed.isEmpty { row = row.filter { $0.bookmark == nil } + filed }
-        let active = opened?.id ?? row.first?.id
+        // Fork: a row saved with nothing selected stays that way.
+        let active: Tab.ID? = saved.active < 0 ? nil : (opened?.id ?? row.first?.id)
         return Parked(tabs: row, active: active)
     }
 
@@ -1524,7 +1528,12 @@ final class Browser: NSObject, ObservableObject {
     /// Spaces.swift) — empty, for one that restores its own.
     func showRow(_ row: [Tab], active: Tab.ID?) {
         tabs = row
-        activeID = active ?? row.first?.id
+        // Fork: nil is an empty window, not "pick the first pin".
+        if let active, row.contains(where: { $0.id == active }) {
+            activeID = active
+        } else {
+            activeID = nil
+        }
         releaseForeignBookmarks()
     }
 
@@ -1933,7 +1942,8 @@ final class Browser: NSObject, ObservableObject {
             refusals += 1
             return
         }
-        (active ?? tabs.first)?.go(to: url)
+        // Fork: no page up — the address opens one (Fork/LastTabClosed.swift).
+        show(url)
         editing = false
         typed = ""
     }

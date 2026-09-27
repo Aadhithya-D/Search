@@ -289,6 +289,10 @@ struct SettingsPanel: View {
                 Switch(on: $prefs.bookmarksBar)
             }
             Rule()
+            Line("Cross out closed bookmarks", "A bookmark with no page open is dimmed, and crossed out while this is on.") {
+                Switch(on: $prefs.strikeClosedMarks)
+            }
+            Rule()
             Line("Show how far you've read", "The tab you're on fills with grey as you scroll down the page") {
                 Switch(on: $prefs.showsReading)
             }

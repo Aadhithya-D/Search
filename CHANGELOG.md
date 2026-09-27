@@ -13,6 +13,9 @@ in [ROADMAP.md](ROADMAP.md).
 
 ### Added
 
+- Closed bookmarks in the column are dimmed, and crossed out unless you turn that off in Settings › Tabs › Cross out closed bookmarks. A pin you have open keeps its icon's colour; the one you are on has a border; one you have put down is grey.
+- With the column on the right, the page meets the top of the window the same way it meets the other edges. The traffic lights come back when the pointer is at the top.
+- Closing the last page leaves the window open, with nothing in it. ⌘T or New Tab opens one. The red light and ⌘Q still quit.
 - Links from other apps can open in a small window of their own: the page, the site and Open in Search (⌘O), which moves it into your tabs as it is, after the pins and without loading it again. Escape or ⌘W closes it. Off unless you turn it on in Settings › General › Open links from other apps in a small window. The idea came from [@K-NRS](https://github.com/K-NRS) ([#227](https://github.com/driceroland/Search/pull/227)), after Arc's Little Arc.
 
 ### Fixed

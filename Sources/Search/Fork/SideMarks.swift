@@ -136,6 +136,9 @@ struct SideMarks: View {
     var active: Tab.ID? = nil
     /// That space's colour, for its folders. Absent, the one on screen.
     var colour: Int? = nil
+    /// Closed pages are crossed out. The column passes the setting so a
+    /// change in Settings redraws these rows.
+    var strike = true
 
     @State private var overEmpty = false
 
@@ -240,6 +243,7 @@ struct SideMarks: View {
         return line(
             node, depth: depth, folder: false, opened: false,
             live: openTab?.id == liveID,
+            open: openTab?.asleep == false,
             close: openTab.map { tab in { browser.close(tab) } },
             newFolder: live ? {
                 let parent = bookmarks.parent(of: node.id)
@@ -265,6 +269,7 @@ struct SideMarks: View {
         folder: Bool,
         opened: Bool,
         live rowLive: Bool,
+        open: Bool = false,
         close: (() -> Void)?,
         newFolder: (() -> Void)?,
         act: @escaping () -> Void
@@ -273,7 +278,8 @@ struct SideMarks: View {
             ? Bookmarks.folders(bookmarks.roots).filter { !Bookmarks.holds($0.node.id, node) }
             : []
         return Line(
-            node: node, depth: depth, folder: folder, opened: opened, live: rowLive,
+            node: node, depth: depth, folder: folder, opened: opened, live: rowLive, open: open,
+            strike: strike,
             lit: folder && live && aim.mark.folder == node.id,
             act: act, close: close, newFolder: newFolder,
             addPage: folder && live ? { if let tab = browser.active { browser.file(tab, into: node.id) } } : nil,
@@ -340,6 +346,10 @@ struct SideMarks: View {
         let folder: Bool
         let opened: Bool
         let live: Bool
+        /// The bookmark's page is open, and this row is not the one on screen.
+        let open: Bool
+        /// Closed titles are crossed out. Off, they are only dimmed.
+        let strike: Bool
         let lit: Bool
         let act: () -> Void
         let close: (() -> Void)?
@@ -358,12 +368,19 @@ struct SideMarks: View {
         @State private var over = false
         @Environment(\.colorScheme) private var scheme
 
-        /// The same quiet as a tab you are not on. A folder stays readable;
-        /// a page does not, until it is the one open.
+        /// The page on screen is full ink. One open beside it is too. A
+        /// closed page is dim, so the folder still reads as a list of places
+        /// rather than of tabs.
         private var title: Color {
             if folder { return hovering ? Palette.ink : Palette.ink.opacity(0.9) }
-            if live { return Palette.ink }
-            return hovering ? Palette.ink : Palette.ink.opacity(0.78)
+            if live || open { return Palette.ink }
+            return Palette.ink.opacity(hovering ? 0.62 : 0.4)
+        }
+
+        private var weight: Font.Weight {
+            if live { return .semibold }
+            if open || folder { return .medium }
+            return .regular
         }
 
         var body: some View {
@@ -376,10 +393,13 @@ struct SideMarks: View {
                         letter: String((node.host ?? "•").prefix(1)).uppercased(),
                         size: 15
                     )
-                    .opacity(live ? 1 : 0.72)
+                    // A closed page's icon is grey, the way a put-down pin is.
+                    .saturation(live || open ? 1 : 0)
+                    .opacity(live || open ? 1 : 0.55)
                 }
                 Text(node.title)
-                    .font(.system(size: 12.5))
+                    .font(.system(size: 12.5, weight: weight))
+                    .strikethrough(!folder && !live && !open && strike, color: title)
                     .foregroundStyle(title)
                     .lineLimit(1)
                     .truncationMode(.tail)
