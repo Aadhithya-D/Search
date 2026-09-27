@@ -157,6 +157,14 @@ if [ -n "$IDENTITY" ]; then
     --entitlements "$ENTITLEMENTS" \
     --sign "$IDENTITY" "$APP"
   echo "signed as: $IDENTITY"
+elif security find-identity -p codesigning 2>/dev/null | grep -q '"Search Local Signing"'; then
+  # Fork: a certificate of this Mac's own (see FORK.md). Ad-hoc, the app's
+  # identity is the hash of this one build, so every rebuild is a stranger
+  # to the keychain and each saved password asks again. Signed with the
+  # same certificate every time, "Always Allow" lasts.
+  codesign --force --deep --entitlements "Search.entitlements" --sign "Search Local Signing" "$APP"
+  echo "signed as: Search Local Signing"
+  [ "$STEP" != "app" ] && echo "signed with this Mac's own certificate — the DMG opens elsewhere with right-click › Open" >&2
 else
   codesign --force --deep --sign - "$APP" 2>/dev/null || true
   [ "$STEP" != "app" ] && echo "no Developer ID certificate found — the DMG will only open on this Mac" >&2

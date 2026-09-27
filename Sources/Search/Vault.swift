@@ -28,7 +28,7 @@ struct Login: Identifiable, Equatable, Hashable {
 enum Vault {
     /// What every item of ours is tagged with. A test run tags its own, so a
     /// password saved while trying something never sits among the real ones.
-    private static let label = Store.world.map { "Search (\($0))" } ?? "Search"
+    static let label = Store.world.map { "Search (\($0))" } ?? "Search"
 
     // MARK: - reading
 
@@ -43,6 +43,9 @@ enum Vault {
     static func logins(for host: String) -> [Login] {
         rows(where: [kSecAttrServer as String: host]).compactMap(login(from:))
     }
+    // Fork: none of these read a secret — a keychain prompt each, for every
+    // account a site has, before anything was picked. `secret(for:)` reads
+    // the one that is used.
 
     /// The keychain matches a server name exactly, and a sign-in rarely lives
     /// on the page you saved it from — accounts.example.com asks, and the
@@ -51,9 +54,11 @@ enum Vault {
     static func logins(matching host: String) -> [Login] {
         let domain = registrable(host)
         let exact = logins(for: host)
+        let exactIDs = Set(exact.map(\.id))
         let wider = rows(where: [:])
             .filter { ($0[kSecAttrServer as String] as? String).map { $0 != host && registrable($0) == domain } ?? false }
             .compactMap(login(from:))
+            .filter { !exactIDs.contains($0.id) }
         return (exact + wider).sorted { ($0.used ?? .distantPast) > ($1.used ?? .distantPast) }
     }
 
@@ -85,6 +90,12 @@ enum Vault {
     }
 
     /// One item's secret, by the two things that name it.
+    /// Fork: the password of one login — the only read that can bring up the
+    /// keychain's question, and only for this one (Fork/QuietKeychain.swift).
+    static func secret(for login: Login) -> String? {
+        login.password.isEmpty ? secret(host: login.host, user: login.user) : login.password
+    }
+
     private static func secret(host: String, user: String) -> String? {
         var out: CFTypeRef?
         let status = SecItemCopyMatching([
@@ -104,14 +115,13 @@ enum Vault {
 
     private static func login(from row: [String: Any]) -> Login? {
         guard let host = row[kSecAttrServer as String] as? String,
-              let user = row[kSecAttrAccount as String] as? String,
-              let password = secret(host: host, user: user)
+              let user = row[kSecAttrAccount as String] as? String
         else { return nil }
         // The keychain has no "last used" of its own; it rides in the comment.
         let used = (row[kSecAttrComment as String] as? String)
             .flatMap(Double.init).map(Date.init(timeIntervalSince1970:))
         let clear = (row[kSecAttrProtocol as String] as? String) == (kSecAttrProtocolHTTP as String)
-        return Login(host: host, user: user, password: password, used: used, clear: clear)
+        return Login(host: host, user: user, password: "", used: used, clear: clear)
     }
 
     // MARK: - writing
@@ -152,8 +162,17 @@ enum Vault {
     }
 
     /// It was just used to sign in. Lists put it first from now on.
+    /// Fork: only the date, so it needs no secret.
     static func touch(_ login: Login) {
-        save(host: login.host, user: login.user, password: login.password, used: Date(), clear: login.clear)
+        SecItemUpdate([
+            kSecClass as String: kSecClassInternetPassword,
+            kSecAttrServer as String: login.host,
+            kSecAttrAccount as String: login.user,
+            kSecAttrLabel as String: label,
+        ] as CFDictionary, [
+            kSecAttrComment as String: String(Date().timeIntervalSince1970),
+            kSecAttrProtocol as String: login.clear ? kSecAttrProtocolHTTP : kSecAttrProtocolHTTPS,
+        ] as CFDictionary)
     }
 
     static func forget(host: String, user: String) {

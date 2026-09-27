@@ -309,7 +309,12 @@ final class Browser: NSObject, ObservableObject {
               (tab.address?.scheme?.lowercased() == "http") == list.clear
         else { return }
         pickedInto = tab.id
-        tab.fill(user: login.user, password: login.password) { [weak self] worked in
+        // Fork: the one secret, read now (Fork/QuietKeychain.swift).
+        guard let password = Vault.secret(for: login) else {
+            announce("The keychain didn't give that password")
+            return
+        }
+        tab.fill(user: login.user, password: password) { [weak self] worked in
             if !worked { self?.announce("Couldn't find the sign-in fields anymore") }
         }
         Vault.touch(login)
@@ -364,9 +369,13 @@ final class Browser: NSObject, ObservableObject {
     func copy(_ login: Login) {
         Vault.prove("copy the password for \(login.host)") { [weak self] ok in
             guard ok, let self else { return }
+            guard let password = Vault.secret(for: login) else {
+                self.announce("The keychain didn't give that password")
+                return
+            }
             let board = NSPasteboard.general
             board.prepareForNewContents(with: .currentHostOnly)
-            board.setString(login.password, forType: .string)
+            board.setString(password, forType: .string)
             board.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
             board.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.TransientType"))
             let copied = board.changeCount
@@ -1691,7 +1700,8 @@ final class Browser: NSObject, ObservableObject {
             if #available(macOS 15.4, *), Extensions.shared.passwordSavingTakenBy != nil { return }
             let known = Vault.logins(for: host)
             // Nothing to ask about one that is already known.
-            if var same = known.first(where: { $0.user == user && $0.password == password }) {
+            // Fork: the one account of that name is read, not every one.
+            if var same = known.first(where: { $0.user == user }), Vault.secret(for: same) == password {
                 // Where it was last used is where it is offered from now on.
                 same.clear = clear
                 Vault.touch(same)
