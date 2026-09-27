@@ -433,7 +433,7 @@ private struct TabPill: View {
                     } else if tab.loading {
                         // Its page on the way, as a tab's ring says; the
                         // letter or icon comes back once it is there.
-                        Ring(size: 11)
+                        ProgressRing(tab: tab)  // Fork: Fork/Loading.swift
                     } else if prefs.glyph == .icons, let icon = tab.icon {
                         Mark(icon: icon, letter: tab.pin ?? "", size: 16, dim: tab.asleep)
                     } else {
