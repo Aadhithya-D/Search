@@ -242,7 +242,12 @@ struct SideMarks: View {
             // Not nil == nil: with nothing open, no bookmark is the one on screen.
             live: openTab != nil && openTab?.id == liveID,
             open: openTab?.asleep == false,
-            close: openTab.map { tab in { browser.close(tab) } },
+            // Put down and kept (Fork/BookmarkPagesKept.swift): the cross
+            // becomes a minus, which drops the page and removes the bookmark.
+            rested: browser.prefs.keepsBookmarkPages && openTab?.asleep == true,
+            close: openTab.map { tab in
+                { tab.asleep && browser.prefs.keepsBookmarkPages ? browser.dismissBookmark(tab) : browser.close(tab) }
+            },
             newFolder: live ? {
                 let parent = bookmarks.parent(of: node.id)
                 Ask.name("New Folder", placeholder: "Name", confirm: "Create") { title in
@@ -268,6 +273,7 @@ struct SideMarks: View {
         opened: Bool,
         live rowLive: Bool,
         open: Bool = false,
+        rested: Bool = false,
         close: (() -> Void)?,
         newFolder: (() -> Void)?,
         act: @escaping () -> Void
@@ -276,7 +282,7 @@ struct SideMarks: View {
             ? Bookmarks.folders(bookmarks.roots).filter { !Bookmarks.holds($0.node.id, node) }
             : []
         return Line(
-            node: node, depth: depth, folder: folder, opened: opened, live: rowLive, open: open,
+            node: node, depth: depth, folder: folder, opened: opened, live: rowLive, open: open, rested: rested,
             strike: browser.prefs.strikeClosedMarks, greys: browser.prefs.greysClosed,
             lit: folder && live && aim.mark.folder == node.id,
             act: act, close: close, newFolder: newFolder,
@@ -346,6 +352,9 @@ struct SideMarks: View {
         let live: Bool
         /// The bookmark's page is open, and this row is not the one on screen.
         let open: Bool
+        /// Its page was put down: the cross has become a minus, which removes
+        /// the bookmark.
+        let rested: Bool
         /// Closed titles are crossed out; off, they are only dimmed.
         let strike: Bool
         /// Closed pages' icons are grey; off, only lighter.
@@ -440,15 +449,15 @@ struct SideMarks: View {
                 // A real view, not a SwiftUI button: the row's own tap was
                 // winning the click, so the cross reopened the page it had
                 // just closed. The target is the whole end of the row.
-                if let close, hovering {
+                if rested || (close != nil && hovering) {
                     ZStack {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .semibold))
+                        Image(systemName: rested ? "minus" : "xmark")
+                            .font(.system(size: rested ? 12 : 8, weight: .semibold))
                             .foregroundStyle(Palette.quiet)
                             .frame(width: 15, height: 15)
                             .background(Palette.ink.opacity(0.07), in: Circle())
                             .allowsHitTesting(false)
-                        BookmarkClose(act: close)
+                        BookmarkClose(act: rested ? remove : (close ?? {}))
                             .frame(width: 32, height: SideBar.row)
                     }
                     .padding(.trailing, 4)
@@ -488,6 +497,7 @@ struct SideMarks: View {
             .help(node.url ?? node.title)
             .animation(Motion.quick, value: hovering)
             .animation(Motion.quick, value: opened)
+            .animation(Motion.quick, value: rested)
             .animation(Motion.settle, value: over)
         }
     }
@@ -516,7 +526,16 @@ private struct BookmarkClose: NSViewRepresentable {
             return super.hitTest(point)
         }
 
-        override func mouseDown(with event: NSEvent) { act() }
+        private var armed = false
+
+        override func mouseDown(with event: NSEvent) { armed = true }
+        override func mouseUp(with event: NSEvent) {
+            // On the way up, so the row underneath never also takes the click
+            // and opens the page this button just closed (PR #1).
+            defer { armed = false }
+            guard armed else { return }
+            act()
+        }
     }
 }
 
