@@ -14,6 +14,8 @@ has it.
 - Updating: `git fetch upstream && git rebase upstream/main` (or a release
   tag), then `swift build`. `git config rerere.enabled true` remembers how a
   conflict was resolved.
+- `README.md` and `CONTRIBUTING.md` each carry a fork note at the very top,
+  and are otherwise upstream's; keep those notes there on a sync.
 - When upstream ships something that does the same job, compare, and if theirs
   is as good, drop that commit (`git rebase -i`) or rebuild it on theirs. The
   "Upstream overlap" column says where to look.
