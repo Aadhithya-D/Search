@@ -193,7 +193,7 @@ final class SpaceSwipe {
     func slide(_ browser: Browser, to target: Int, from here: Int, onward: Bool? = nil) {
         // A page is the column's width, or the bar's height.
         let width = browser.prefs.sidebar ? browser.prefs.sideWidth : Metrics.strip
-        let forward = onward ?? target > here
+        let forward = onward ?? (target > here)
         let away: CGFloat = forward ? -1 : 1
         browser.spaceStep = forward ? 1 : -1
         browser.spaceArrival = target
