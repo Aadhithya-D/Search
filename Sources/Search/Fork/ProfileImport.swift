@@ -184,24 +184,35 @@ extension Browser {
 
     /// One profile into one space. Everything read is read off the main
     /// thread from copies; only the landing happens here.
+    /// What to bring of a profile.
+    struct ProfileParts {
+        var bookmarks = true
+        var passwords = true
+        var history = true
+        var cookies = true
+    }
+
     func takeProfile(_ profile: Chromium.Profile, into space: UUID, passphrase: String?,
-                     cookies: Bool, then done: @escaping (ProfileHaul) -> Void) {
+                     parts: ProfileParts, then done: @escaping (ProfileHaul) -> Void) {
         let source = profile.source
         let only = profile.folder
+        let cookies = parts.cookies
         DispatchQueue.global(qos: .userInitiated).async {
-            let marks = Chromium.bookmarks(in: source, profile: only)
-            let found = passphrase.flatMap { try? Chromium.read(source, profile: only, passphrase: $0) }
-            let places = Chromium.places(in: source, profile: only)
+            let marks = parts.bookmarks ? Chromium.bookmarks(in: source, profile: only) : []
+            let found = parts.passwords ? passphrase.flatMap { try? Chromium.read(source, profile: only, passphrase: $0) } : nil
+            let places = parts.history ? Chromium.places(in: source, profile: only) : []
             let jar = cookies ? passphrase.map { Chromium.cookies(in: profile, passphrase: $0) } ?? [] : []
             let urls = Bookmarks.urls(marks)
             DispatchQueue.main.async {
                 var haul = ProfileHaul()
-                self.bookmarks.take(marks, from: profile.name, into: space)
+                if !marks.isEmpty { self.bookmarks.take(marks, from: profile.name, into: space) }
                 haul.bookmarks = Bookmarks.count(marks)
 
                 if let found {
-                    for login in found.logins
-                    where Vault.save(host: login.host, user: login.user, password: login.password, used: login.used, clear: login.clear) {
+                    // Only accounts not kept yet: writing over one is a keychain
+                    // question for each (Fork/QuietKeychain.swift).
+                    for login in found.logins where !Vault.keeps(host: login.host, user: login.user)
+                    && Vault.save(host: login.host, user: login.user, password: login.password, used: login.used, clear: login.clear) {
                         haul.passwords += 1
                     }
                     var never = Vault.never
@@ -213,7 +224,7 @@ extension Browser {
                 for place in places {
                     self.history.take(place.url, title: place.title, count: place.count, last: place.last)
                 }
-                self.history.settle()
+                if !places.isEmpty { self.history.settle() }
                 haul.places = places.count
 
                 let store = Spaces.store(for: space).httpCookieStore
@@ -277,7 +288,7 @@ struct ProfileImportView: View {
     /// Where each profile goes: a space's id, or nil to leave it.
     @State private var targets: [Chromium.Profile.ID: UUID?] = [:]
     @State private var source: Chromium.Source?
-    @State private var cookies = true
+    @State private var parts = Browser.ProfileParts()
     @State private var working = false
     @State private var report: [String] = []
 
@@ -323,7 +334,12 @@ struct ProfileImportView: View {
                     }
                 }
 
-                Toggle("Bring cookies, so sites stay signed in", isOn: $cookies)
+                HStack(spacing: 16) {
+                    Toggle("Bookmarks", isOn: $parts.bookmarks)
+                    Toggle("Passwords", isOn: $parts.passwords)
+                    Toggle("History", isOn: $parts.history)
+                    Toggle("Cookies (stay signed in)", isOn: $parts.cookies)
+                }
 
                 Text("\(source?.name ?? "The browser") is only read, never changed. macOS asks once for its keychain key.")
                     .font(.system(size: 11.5))
@@ -344,7 +360,8 @@ struct ProfileImportView: View {
                 if report.isEmpty {
                     Button("Import", action: start)
                         .keyboardShortcut(.defaultAction)
-                        .disabled(working || !targets.values.contains { $0 != nil })
+                        .disabled(working || !targets.values.contains { $0 != nil }
+                                  || !(parts.bookmarks || parts.passwords || parts.history || parts.cookies))
                 }
             }
         }
@@ -372,7 +389,7 @@ struct ProfileImportView: View {
 
     /// A space signed in with the first one shares its cookies.
     private func sharing(_ id: UUID) -> String? {
-        guard cookies, id != Space.firstID, Spaces.sharing.contains(id) else { return nil }
+        guard parts.cookies, id != Space.firstID, Spaces.sharing.contains(id) else { return nil }
         return "shares sign-ins with \(browser.spaces.first?.name ?? "the first space")"
     }
 
@@ -398,11 +415,14 @@ struct ProfileImportView: View {
             browser.announce("Imported from \(source?.name ?? "the browser")")
             return
         }
-        browser.takeProfile(profile, into: space, passphrase: passphrase, cookies: cookies) { haul in
+        browser.takeProfile(profile, into: space, passphrase: passphrase, parts: parts) { haul in
             let name = browser.spaces.first { $0.id == space }?.name ?? "a space"
-            var parts = ["\(haul.bookmarks) bookmarks", "\(haul.passwords) new passwords", "\(haul.places) history entries"]
-            if cookies { parts.append("\(haul.cookies) cookies") }
-            report.append("\(profile.name) → \(name): " + parts.joined(separator: ", "))
+            var said: [String] = []
+            if parts.bookmarks { said.append("\(haul.bookmarks) bookmarks") }
+            if parts.passwords { said.append("\(haul.passwords) passwords") }
+            if parts.history { said.append("\(haul.places) history entries") }
+            if parts.cookies { said.append("\(haul.cookies) cookies") }
+            report.append("\(profile.name) → \(name): " + said.joined(separator: ", "))
             run(left.dropFirst(), passphrase: passphrase)
         }
     }
