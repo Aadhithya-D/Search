@@ -144,20 +144,22 @@ private enum SearchAliasEditor {
         alert.window.initialFirstResponder = name
 
         let done: (Bool) -> Void = { ok in
-            guard ok else { return }
-            let titled = name.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let address = template.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let word = keyword.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            let alias = SearchAlias(id: existing?.id ?? UUID(), name: titled, template: address, keyword: word)
-            guard !titled.isEmpty, !word.isEmpty, !word.contains(where: \.isWhitespace), Engine.accepts(address) else {
-                NSSound.beep()
-                DispatchQueue.main.async { present(alias, prefs: prefs) }
-                return
-            }
-            guard prefs.saveAlias(alias) else {
-                NSSound.beep()
-                DispatchQueue.main.async { present(alias, prefs: prefs) }
-                return
+            MainActor.assumeIsolated {
+                guard ok else { return }
+                let titled = name.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let address = template.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let word = keyword.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                let alias = SearchAlias(id: existing?.id ?? UUID(), name: titled, template: address, keyword: word)
+                guard !titled.isEmpty, !word.isEmpty, !word.contains(where: \.isWhitespace), Engine.accepts(address) else {
+                    NSSound.beep()
+                    DispatchQueue.main.async { present(alias, prefs: prefs) }
+                    return
+                }
+                guard prefs.saveAlias(alias) else {
+                    NSSound.beep()
+                    DispatchQueue.main.async { present(alias, prefs: prefs) }
+                    return
+                }
             }
         }
         guard let window = Links.window else {
