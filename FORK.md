@@ -60,6 +60,7 @@ Base: upstream `v1.0.4` (`3ef8cb5`, "Search 1.0.4").
 | 30 | README and CONTRIBUTING: the fork's notes | — | Top of `README.md` and `CONTRIBUTING.md` | — |
 | 31 | With the column on the right, the lights stay in the window's corner and wait for the pointer | `SidePosition.swift` | `Lights.keep`'s centre stays left; the column's first row keeps no room for them on the right; `Fold` watches the top edge (`topNear`) and slides them up; `gutterTop` keeps the page's inset | Upstream's right-hand column (1.0.4) carries the lights in it |
 | 32 | A PDF prints as the document it is, from the PDF bar's button too | `SavingPages.swift` | Upstream's `printFrame` delegate hands a PDF to `print(_:)` | upstream print() (1.0.4) |
+| 33 | The floating video goes with you from space to space | `FloatAcrossSpaces.swift` | `Browser.floatingTab` in place of the row lookup in `land` and the floater's buttons; its return button goes via `goHome`; `leaving` not private; `enter` floats on the way out (`leaving()`, was `land()`) and `landIfHome` on arrival; `deleteSpace`/`leaveSpaces` call `landIfIn` | — |
 
 Dropped at the 1.0.4 sync, as upstream now does the same: import bookmarks
 from an HTML file (Bring Things Over › File…), and the column on the right

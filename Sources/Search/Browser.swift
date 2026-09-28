@@ -1113,23 +1113,20 @@ final class Browser: NSObject, ObservableObject {
             // The window closes first, and unconditionally. Hanging that on
             // finding the tab again is how a little window survives the button
             // meant to dismiss it.
-            let came = self.floating
+            // Fork: its tab may be in another space (Fork/FloatAcrossSpaces.swift).
+            let came = self.floatingTab
             self.land()
-            if let came, let tab = self.tabs.first(where: { $0.id == came }) {
-                self.select(tab)
-            }
+            if let came { self.goHome(to: came) }
             NSApp.activate(ignoringOtherApps: true)
             NSApp.windows.first { $0.contentView != nil }?.makeKeyAndOrderFront(nil)
         }
         floater.onSkip = { [weak self] seconds in
-            guard let self, let id = self.floating,
-                  let tab = self.tabs.first(where: { $0.id == id })
+            guard let self, let tab = self.floatingTab  // Fork: any space's (Fork/FloatAcrossSpaces.swift)
             else { return }
             tab.web.evaluateInSearch(Isolate.skip(seconds))
         }
         floater.onProgress = { [weak self] answer in
-            guard let self, let id = self.floating,
-                  let tab = self.tabs.first(where: { $0.id == id })
+            guard let self, let tab = self.floatingTab  // Fork: any space's (Fork/FloatAcrossSpaces.swift)
             else { return }
             tab.web.evaluateInSearch(Isolate.where_) { found in
                 MainActor.assumeIsolated {
@@ -1142,8 +1139,7 @@ final class Browser: NSObject, ObservableObject {
             }
         }
         floater.onPlayPause = { [weak self] answer in
-            guard let self, let id = self.floating,
-                  let tab = self.tabs.first(where: { $0.id == id })
+            guard let self, let tab = self.floatingTab  // Fork: any space's (Fork/FloatAcrossSpaces.swift)
             else { return }
             tab.web.evaluateInSearch(Isolate.toggle) { playing in
                 MainActor.assumeIsolated { answer((playing as? Bool) ?? true) }
@@ -2589,7 +2585,7 @@ final class Browser: NSObject, ObservableObject {
 
     /// Stepping away from a tab. A video you were watching does not stop
     /// existing because you went to look something up.
-    private func leaving() {
+    func leaving() {  // Fork: not private, for a space left (Fork/FloatAcrossSpaces.swift)
         guard prefs.floatsOnLeave else { return }
         lift(active, quietly: true)
     }
@@ -2660,7 +2656,8 @@ final class Browser: NSObject, ObservableObject {
         // The window closes whatever else is true. Tying that to the bookkeeping
         // is how a little window outlives the thing that opened it.
         if floater.showing { floater.drop() }
-        guard let id = floating, let tab = tabs.first(where: { $0.id == id }) else { return }
+        // Fork: its tab may be parked in another space (Fork/FloatAcrossSpaces.swift).
+        guard let tab = floatingTab else { return }
         floating = nil
         tab.floating = false
         tab.web.evaluateInSearch(Isolate.off)

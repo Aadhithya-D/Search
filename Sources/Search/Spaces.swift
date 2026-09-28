@@ -187,7 +187,9 @@ extension Browser {
         // Which way the icon at the foot turns over: the way the spaces lie.
         if !makingSpace { spaceStep = to > (spaces.firstIndex { $0.id == spaceID } ?? 0) ? 1 : -1 }
         cancelTabEdit()
-        if floater.showing { land() }
+        // Fork: the video floats out, and one already out stays out, in
+        // every space (Fork/FloatAcrossSpaces.swift).
+        leaving()
         writeSession(now: true)
 
         // The row on screen is parked as it is, sound and all: music or a
@@ -212,6 +214,7 @@ extension Browser {
             showRow([], active: nil)
             restoreSession()
         }
+        landIfHome()  // Fork: Fork/FloatAcrossSpaces.swift
         editing = active?.isBlank ?? true
         typed = ""
         askFocus()
@@ -305,6 +308,7 @@ extension Browser {
     func deleteSpace(_ id: UUID) {
         guard id != Space.firstID, let at = spaces.firstIndex(where: { $0.id == id }) else { return }
         if spaceID == id { switchSpace(to: Space.firstID) }
+        landIfIn(parked[id]?.tabs ?? [])  // Fork: Fork/FloatAcrossSpaces.swift
         for tab in parked.removeValue(forKey: id)?.tabs ?? [] { tab.close() }
         let shared = spaces[at].sharesSignIns == true
         spaces.remove(at: at)
@@ -325,6 +329,7 @@ extension Browser {
     /// case they are turned on again.
     func leaveSpaces() {
         enter(Space.firstID)
+        landIfIn(parkedTabs)  // Fork: Fork/FloatAcrossSpaces.swift
         for (_, row) in parked { for tab in row.tabs { tab.close() } }
         parked = [:]
     }
