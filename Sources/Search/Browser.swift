@@ -3643,6 +3643,12 @@ extension Browser: WKDownloadDelegate {
         pdfFirstPageSize: CGSize,
         completionHandler done: @escaping () -> Void
     ) {
+        // Fork: a PDF prints as the document it is (Fork/SavingPages.swift):
+        // WebKit's drawing of it came out cut at the edges.
+        if webView.showsPDF {
+            print(webView)
+            return done()
+        }
         guard let window = webView.window, window.isKeyWindow, window.attachedSheet == nil,
               let tab = anyTab(for: webView), tab.id == activeID, !tab.isBlank,
               PrintSheet.allows(tab)
