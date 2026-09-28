@@ -98,7 +98,7 @@ enum Browsers {
     /// under (#204); a test run's own.
     static let sceneID = Store.world.map { "search (\($0))" } ?? "search"
 
-    static var primary: Browser? { all.first }
+    static var primary: Browser? { all.first { !$0.isPrivate } }  // Fork: Fork/PrivateWindow.swift
     static var front: Browser? { Front.shared.browser ?? all.last }
     /// The browser to act on when a menu or a link needs one.
     static var acting: Browser { front ?? SceneSlot.shared.browser }
@@ -250,7 +250,7 @@ enum Browsers {
             return
         }
         let others = all.filter { $0 !== browser && $0.isOpen && $0.extensionPopup == nil }
-        guard !others.isEmpty else {
+        guard !others.isEmpty || browser.isPrivate else {  // Fork: a private one always goes
             // The last one: kept, tabs and all, and written down now.
             browser.shut = true
             browser.flushSession()
@@ -262,7 +262,7 @@ enum Browsers {
 
     private static func retire(_ browser: Browser, remembered: Bool = true) {
         let wasPrimary = browser === primary
-        if remembered {
+        if remembered, !browser.isPrivate {  // Fork: a private one is never reopened
             closed.append((record(of: browser, rows: true), Date()))
             if closed.count > 10 { closed.removeFirst(closed.count - 10) }
         }
@@ -316,7 +316,7 @@ enum Browsers {
         guard let primary else { return }
         var records = [record(of: primary, rows: false)]
         records[0].rows = [:]
-        for browser in saved.dropFirst() { records.append(record(of: browser, rows: true)) }
+        for browser in saved where browser !== primary && !browser.isPrivate { records.append(record(of: browser, rows: true)) }  // Fork: Fork/PrivateWindow.swift
         // Frozen before it goes to the Disk queue.
         let snapshot = records
         Disk.write(file, now: now) { try? JSONEncoder().encode(snapshot) }

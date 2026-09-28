@@ -483,6 +483,9 @@ final class Extensions: NSObject, ObservableObject {
             }
             Extensions.fence(context)
             Extensions.watchTouches()
+            // Fork: private pages are the extension's too, so a blocker's
+            // rules hold in a private window (Fork/PrivateWindow.swift).
+            context.hasAccessToPrivateData = true
             try controller.load(context)
             watch(context)
             if contexts[item.id] == nil, loadsThisRun.contains(item.id) { loadedBefore.insert(item.id) }
@@ -1634,7 +1637,7 @@ final class ExtensionWindow: NSObject, WKWebExtensionWindow {
     func windowType(for context: WKWebExtensionContext) -> WKWebExtension.WindowType {
         browser?.extensionPopup != nil ? .popup : .normal
     }
-    func isPrivate(for context: WKWebExtensionContext) -> Bool { false }
+    func isPrivate(for context: WKWebExtensionContext) -> Bool { browser?.isPrivate ?? false }  // Fork: Fork/PrivateWindow.swift
 
     func windowState(for context: WKWebExtensionContext) -> WKWebExtension.WindowState {
         guard let window = nsWindow else { return .normal }

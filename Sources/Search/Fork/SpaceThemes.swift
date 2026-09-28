@@ -91,6 +91,8 @@ extension Spaces {
     }
 
     static func nsGround(_ space: Space) -> NSColor {
+        // A private window's column: black (Fork/PrivateWindow.swift).
+        if PrivateWindow.stands(for: space) { return NSColor(srgbRed: 0.06, green: 0.06, blue: 0.065, alpha: 1) }
         let tint = tints[clamp(space.colour)]
         return NSColor(name: nil) { appearance in
             let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
