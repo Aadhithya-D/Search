@@ -69,6 +69,8 @@ struct Fold: View {
     @State private var inside = false
     /// Fork: the pointer is close enough to the column's edge for its handle.
     @State private var edgeNear = false
+    /// Fork: the pointer is at the top, over a column on the right.
+    @State private var topNear = false
     @State private var pointer = Pointer()
 
     /// How near the edge the pointer has to be.
@@ -202,6 +204,7 @@ struct Fold: View {
             resetPending()
             browser.peeking = false
             if let bar = Fold.titlebar { Fold.reset(bar, hidden: lightsOff) }
+            watch()
         }
         .onChange(of: prefs.sideWidth) { _, _ in
             if browser.folded { hideLights() }
@@ -252,7 +255,17 @@ struct Fold: View {
     }
 
     private var lightsOff: Bool {
-        browser.folded && !browser.peeking
+        // Fork: a column on the right never holds the lights. They would sit
+        // on the page, so they stay off the top until the pointer is there.
+        if onRight, browser.active?.immersed != true { return !topNear }
+        return browser.folded && !browser.peeking
+    }
+
+    /// Fork: the pointer is watched while something folded can come out,
+    /// and while the column is on the right, so a hand at the top can bring
+    /// the lights back.
+    private var watching: Bool {
+        folding || (onRight && browser.active?.immersed != true)
     }
 
     private var onRight: Bool {
@@ -270,11 +283,12 @@ struct Fold: View {
     /// The pointer is watched only while there is something folded for it
     /// to bring out; the rest of the time no move of it costs anything.
     private func watch() {
-        if folding {
+        if watching {
             pointer.start { follow() }
         } else {
             pointer.stop()
             if edgeNear { edgeNear = false }
+            if topNear { topNear = false }
         }
     }
 
@@ -284,7 +298,22 @@ struct Fold: View {
     /// and after a few quick opens and closes the column stayed open, or the
     /// edge stopped opening it.
     private func follow() {
-        guard folding, let window = pointer.window, window.isVisible else { return pass() }
+        guard let window = pointer.window, window.isVisible else { return pass() }
+        // Fork: the lights over a right-hand column. A thin band brings them
+        // in; once they are in, the band is the row they occupy, so moving
+        // onto a button does not put them away.
+        if onRight, browser.active?.immersed != true {
+            let screen = NSEvent.mouseLocation
+            let point = window.convertPoint(fromScreen: screen)
+            let height = window.frame.size.height
+            let fromTop = height - point.y
+            let inWindow = point.x >= 0 && point.x < window.frame.size.width && point.y >= 0 && point.y < height
+            let zone: CGFloat = topNear ? SideBar.topRow + 8 : Fold.top
+            let near = inWindow && fromTop >= 0 && fromTop <= zone
+                && NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber
+            if near != topNear { topNear = near }
+        }
+        guard folding else { return pass() }
         let screen = NSEvent.mouseLocation
         let point = window.convertPoint(fromScreen: screen)
         let size = window.frame.size
@@ -400,12 +429,9 @@ struct Fold: View {
             return
         }
         if prefs.sidebar {
-            if onRight {
-                Fold.slide(bar, off: lightsOff, by: prefs.sideWidth, right: true)
-            } else {
-                // Fork: they go up and away with the card (Fork/FoldedColumn.swift).
-                Fold.slide(bar, off: lightsOff, by: SideBar.topRow + Lights.nudge.height, up: true)
-            }
+            // Fork: up and away, with the card on the left and on their own
+            // with the column on the right (Fork/FoldedColumn.swift).
+            Fold.slide(bar, off: lightsOff, by: SideBar.topRow + Lights.nudge.height, up: true)
         } else {
             Fold.slide(bar, off: lightsOff, by: Metrics.strip, up: true)
         }

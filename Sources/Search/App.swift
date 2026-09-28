@@ -887,11 +887,10 @@ struct ContentView: View {
         // its three doors sit on the lights' line.
         // Fork: the lights sit in the column's first row (Fork/SideAddress.swift).
         Lights.retarget(band: browser.prefs.sidebar ? SideBar.topRow : Metrics.strip)
-        Lights.keep(window, centreX: {
-            browser.prefs.sidebar && browser.prefs.sidePosition == .right
-                ? window.frame.width - browser.prefs.sideWidth + Lights.centre.x
-                : Lights.centre.x
-        }) { measureLights() }
+        // Fork: the lights stay in the window's corner with the column on
+        // either side; on the right they wait for the pointer at the top
+        // (Fold.swift).
+        Lights.keep(window, centreX: { Lights.centre.x }) { measureLights() }
         DispatchQueue.main.async { measureLights() }
 
         // The traffic lights are drawn — measured, they paint themselves — but
