@@ -71,6 +71,12 @@ extension ContentView {
         browser.space.wearsDark(on: windowScheme == .dark) ? .dark : .light
     }
 
-    /// The frame's top edge over the page.
-    var gutterTop: CGFloat { framed ? 8 : 0 }
+    /// The frame's top edge over the page. With the lights down over a column
+    /// on the right, the space's colour fills the row they sit in
+    /// (Fork/TitleBand.swift).
+    var gutterTop: CGFloat {
+        guard framed else { return 0 }
+        if browser.titleBand { return TitleBand.height }
+        return 8
+    }
 }

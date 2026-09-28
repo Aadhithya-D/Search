@@ -398,6 +398,8 @@ struct ContentView: View {
         .ignoresSafeArea()
         .animation(Motion.glide, value: browser.prefs.sidebar)
         .animation(Motion.glide, value: browser.prefs.sidePosition)
+        // Fork: the page drops as the space's colour comes down (Fork/TitleBand.swift).
+        .animation(Motion.glide, value: browser.titleBand)
         .onChange(of: browser.prefs.sidebar) { _, _ in paintChrome(window) }
         .onChange(of: browser.space) { _, _ in paintChrome(window) }
         .onChange(of: browser.spaceID) { _, _ in paintChrome(window) }
