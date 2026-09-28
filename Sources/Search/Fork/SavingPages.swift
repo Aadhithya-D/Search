@@ -15,9 +15,8 @@ import WebKit
 //   The page says which media was under the pointer; that is downloaded.
 
 extension Browser {
-    // The PDF bar's download button and a page's own print() are
-    // upstream's now (Browser.swift); what is left here is ⌘P and Print…
-    // printing a PDF as the document it is.
+    // The PDF bar's download button and a page's own print() are upstream's
+    // now (Browser.swift); its print hands a PDF over to `print` here.
 
     /// The print sheet, on the browser's own window whatever is in front of it.
     /// A PDF is printed as the document it is, page for page.
@@ -37,7 +36,12 @@ extension Browser {
 
     /// The page as WebKit draws it: everything but a PDF.
     private func printDrawn(_ web: WKWebView, in window: NSWindow) {
-        Browser.printing(web).runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
+        let info = (NSPrintInfo.shared.copy() as? NSPrintInfo) ?? NSPrintInfo.shared
+        info.horizontalPagination = .fit
+        info.isHorizontallyCentered = false
+        let job = web.printOperation(with: info)
+        job.view?.frame = web.bounds
+        job.runModal(for: window, delegate: nil, didRun: nil, contextInfo: nil)
     }
 }
 
