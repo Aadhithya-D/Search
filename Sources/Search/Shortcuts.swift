@@ -147,7 +147,7 @@ struct Command: Identifiable {
 
         Command("file.newWindow", "New Window", .file, KeyCombo("n")) { _ in Browsers.newWindow() },
         Command("file.newTab", "New Tab", .file, KeyCombo("t")) { $0.newTab() },
-        Command("file.newPrivateTab", "New Private Tab", .file, KeyCombo("n", shift: true)) { $0.newShyTab() },
+        Command("file.newPrivateTab", "New Private Window", .file, KeyCombo("n", shift: true)) { PrivateWindow.open(from: $0) },  // Fork
         Command("file.reopen", "Reopen Closed Tab", .file, KeyCombo("t", shift: true)) { $0.reopen() },
         Command("file.openAddress", "Open Address…", .file, KeyCombo("l")) { $0.edit() },
         Command("file.closeTab", "Close Tab", .file, KeyCombo("w")) { browser in

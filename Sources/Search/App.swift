@@ -40,7 +40,8 @@ struct SearchApp: App {
                     .shortcut("file.newWindow")
                 Button("New Tab") { browser.newTab() }
                     .shortcut("file.newTab")
-                Button("New Private Tab") { browser.newShyTab() }
+                // Fork: a private window (Fork/PrivateWindow.swift).
+                Button("New Private Window") { PrivateWindow.open(from: browser) }
                     .shortcut("file.newPrivateTab")
                 Button("Reopen Closed Tab") { browser.reopen() }
                     .shortcut("file.reopen")
@@ -1253,7 +1254,7 @@ struct ContentView: View {
         case "d" where !shifted:
             browser.duplicate()
         case "n" where shifted:
-            browser.newShyTab()
+            PrivateWindow.open(from: browser)  // Fork: Fork/PrivateWindow.swift
         case "y" where !shifted:
             browser.recalling.toggle()
         case "j" where shifted:

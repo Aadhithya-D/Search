@@ -444,6 +444,9 @@ final class Extensions: NSObject, ObservableObject {
                     context.setPermissionStatus(.deniedExplicitly, for: pages)
                 }
             }
+            // Fork: private pages are the extension's too, so a blocker's
+            // rules hold in a private window (Fork/PrivateWindow.swift).
+            context.hasAccessToPrivateData = true
             try controller.load(context)
             watch(context)
             if contexts[item.id] == nil, loadsThisRun.contains(item.id) { loadedBefore.insert(item.id) }
@@ -1320,7 +1323,7 @@ final class ExtensionWindow: NSObject, WKWebExtensionWindow {
 
     func activeTab(for context: WKWebExtensionContext) -> (any WKWebExtensionTab)? { browser.flatMap(owner.activeAdapter(of:)) }
     func windowType(for context: WKWebExtensionContext) -> WKWebExtension.WindowType { .normal }
-    func isPrivate(for context: WKWebExtensionContext) -> Bool { false }
+    func isPrivate(for context: WKWebExtensionContext) -> Bool { browser?.isPrivate ?? false }  // Fork: Fork/PrivateWindow.swift
 
     func windowState(for context: WKWebExtensionContext) -> WKWebExtension.WindowState {
         guard let window = nsWindow else { return .normal }

@@ -165,7 +165,10 @@ struct Parked {
 }
 
 extension Browser {
-    var space: Space { spaces.first { $0.id == spaceID } ?? spaces[0] }
+    var space: Space {
+        if isPrivate { return privateSpace }  // Fork: Fork/PrivateWindow.swift
+        return spaces.first { $0.id == spaceID } ?? spaces[0]
+    }
 
     /// Every tab of the spaces not on screen, for the sleep timer.
     var parkedTabs: [Tab] { parked.values.flatMap(\.tabs) }
@@ -183,6 +186,7 @@ extension Browser {
     }
 
     private func enter(_ id: UUID) {
+        guard !isPrivate else { return }  // Fork: one space (Fork/PrivateWindow.swift)
         guard id != spaceID, let to = spaces.firstIndex(where: { $0.id == id }) else { return }
         // Which way the icon at the foot turns over: the way the spaces lie.
         if !makingSpace { spaceStep = to > (spaces.firstIndex { $0.id == spaceID } ?? 0) ? 1 : -1 }

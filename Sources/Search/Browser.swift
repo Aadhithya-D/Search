@@ -1008,6 +1008,11 @@ final class Browser: NSObject, ObservableObject {
     private static var booted = false
 
     /// The first window: yesterday's tabs, from the session files.
+    // Fork: a private window, and the one store its tabs share
+    // (Fork/PrivateWindow.swift).
+    let isPrivate = PrivateWindow.opening
+    lazy var privateStore = WKWebsiteDataStore.nonPersistent()
+
     override convenience init() { self.init(record: nil) }
 
     /// `record`: another window's, from windows.json or ⇧⌘T, or a new
@@ -1102,7 +1107,7 @@ final class Browser: NSObject, ObservableObject {
         // Fork: the space's own bookmarks (Fork/BookmarksPerSpace.swift).
         if Browsers.front == nil || Browsers.front === self { bookmarks.use(spaceID) }
         restoreSession()
-        if prefs.usesSpaces { preloadSpaces() }
+        if prefs.usesSpaces, !isPrivate { preloadSpaces() }  // Fork: Fork/PrivateWindow.swift
     }
 
     /// The floating video's buttons answer the window whose video it is:
@@ -1152,6 +1157,7 @@ final class Browser: NSObject, ObservableObject {
     /// The pins are every window's (see Pins.swift): a window new to this
     /// space has them too, before an empty tab.
     func restoreSession() {
+        if isPrivate { return startPrivate() }  // Fork: Fork/PrivateWindow.swift
         let saved = readRow(spaceID)
         tabGroups = (saved.groups ?? []).filter { group in
             saved.tabs.contains { $0.groupID == group.id }
@@ -1362,6 +1368,9 @@ final class Browser: NSObject, ObservableObject {
     }
 
     func writeSession(now: Bool = false) {
+        // Fork: a private window writes nothing, and its empty pins would
+        // have become every window's (Fork/PrivateWindow.swift).
+        guard !isPrivate else { return }
         // The pins as they are here, for the other windows (see Pins.swift).
         Pins.set(spaceID, pinDefs(tabs), from: self)
         writeRow(spaceID, session(tabs, active: activeID, groups: tabGroups), now: now)
@@ -1386,6 +1395,7 @@ final class Browser: NSObject, ObservableObject {
     /// pinned tab from before pins had ids is matched by letter and page,
     /// then by place.
     func reconcilePins(_ row: [Tab], space: UUID) -> [Tab] {
+        if isPrivate { return row.filter { $0.pin == nil } }  // Fork: no pins (Fork/PrivateWindow.swift)
         let defs = Pins.defs(space)
         var pinned = row.filter { $0.pin != nil && !$0.shy }
         let loose = row.filter { $0.pin == nil || $0.shy }
@@ -1569,6 +1579,7 @@ final class Browser: NSObject, ObservableObject {
     }
 
     func writeRow(_ space: UUID, _ shape: Session.Shape, now: Bool) {
+        guard !isPrivate else { return }  // Fork: Fork/PrivateWindow.swift
         if usesFiles {
             Session.write(now: now, space: space, shape)
         } else {
@@ -1680,6 +1691,7 @@ final class Browser: NSObject, ObservableObject {
     // MARK: - tabs
 
     func newTab() {
+        if isPrivate { return newShyTab() }  // Fork: Fork/PrivateWindow.swift
         // On a private tab, a new one is private too: ⌘T from a page that
         // keeps nothing and landing on one that keeps everything is how a
         // private search ends up in the history.
@@ -2271,7 +2283,9 @@ final class Browser: NSObject, ObservableObject {
         let page = Browser.extensionConfiguration(for: url)
         // A new tab is in this window's space, with its sign-ins — not the
         // space of whichever window is in front, when this one is behind it.
-        let tab = if let source, source.shy, page == nil {
+        let tab = if isPrivate, page == nil {
+            privateTab()  // Fork: Fork/PrivateWindow.swift
+        } else if let source, source.shy, page == nil {
             Tab(shy: true, configuration: Web.configuration(shy: true, store: source.store))
         } else {
             Tab(configuration: page ?? Web.configuration(space: spaceID))
@@ -2458,7 +2472,7 @@ final class Browser: NSObject, ObservableObject {
             focusRequest += 1
             return
         }
-        let tab = Tab(shy: true)
+        let tab = isPrivate ? privateTab() : Tab(shy: true)  // Fork: Fork/PrivateWindow.swift
         adopt(tab)
         leaving()
         activeID = tab.id
@@ -2466,7 +2480,7 @@ final class Browser: NSObject, ObservableObject {
         typed = ""
         editing = false
         focusRequest += 1
-        announce("A tab that keeps nothing")
+        if !isPrivate { announce("A tab that keeps nothing") }
     }
 
     /// ⌘D. The same page, beside itself.

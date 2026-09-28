@@ -80,7 +80,7 @@ final class SpaceSwipe {
         if event.phase == .began || !event.hasPreciseScrollingDeltas, let over = Browsers.browser(for: event.window) {
             browser = over
         }
-        guard let browser, browser.prefs.usesSpaces, !browser.folded || browser.peeking else { return false }
+        guard let browser, browser.prefs.usesSpaces, !browser.isPrivate, !browser.folded || browser.peeking else { return false }
         // A mouse wheel over the tabs: a notch along the spaces' axis — up or down
         // in the bar, sideways in the column — brings one space. In the column
         // only a notch more sideways than up or down: scrolling the tabs is

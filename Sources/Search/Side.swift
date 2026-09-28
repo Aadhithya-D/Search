@@ -545,6 +545,8 @@ struct SideBar: View {
     /// once the column is full; the pins stay above them.
     private var rows: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // Fork: a private window has no bookmarks (Fork/PrivateWindow.swift).
+            if !browser.isPrivate {
             section(browser.space)
                 .onDrop(of: [.text], isTargeted: $overSection) { providers in relocate(providers, into: nil) }
                 .contextMenu {
@@ -554,6 +556,7 @@ struct SideBar: View {
             if !marksFolded.contains(browser.spaceID) {
                 SideMarks(browser: browser, bookmarks: bookmarks, open: openFolders, aim: aim)
                     .transition(.opacity)
+            }
             }
             // Fork: with Clear at its end (Fork/ClearLoose.swift).
             looseRule
@@ -572,8 +575,11 @@ struct SideBar: View {
 
     /// One small door at the bottom: the settings.
     private var foot: some View {
-        // Fork: see Fork/SideFoot.swift.
+        // Fork: see Fork/SideFoot.swift; a private window's, Fork/PrivateWindow.swift.
         ZStack {
+            if browser.isPrivate {
+                PrivateFoot()
+            } else {
             SpaceStrip(browser: browser, theming: $theming)
             // One door either side, the same width, so the spaces between
             // them sit in the true middle of the column.
@@ -581,6 +587,7 @@ struct SideBar: View {
                 Library(browser: browser, loot: browser.loot)
                 Spacer(minLength: 0)
                 Door(icon: "plus", help: "New Space") { browser.askForSpace() }
+            }
             }
         }
         .frame(height: 26)

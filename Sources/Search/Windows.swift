@@ -98,7 +98,7 @@ enum Browsers {
     /// under (#204); a test run's own.
     static let sceneID = Store.world.map { "search (\($0))" } ?? "search"
 
-    static var primary: Browser? { all.first }
+    static var primary: Browser? { all.first { !$0.isPrivate } }  // Fork: Fork/PrivateWindow.swift
     static var front: Browser? { Front.shared.browser ?? all.last }
     /// The browser to act on when a menu or a link needs one.
     static var acting: Browser { front ?? SceneSlot.shared.browser }
@@ -206,7 +206,7 @@ enum Browsers {
     static func closing(_ window: NSWindow) {
         guard !quitting, let browser = browser(for: window) else { return }
         let others = all.filter { $0 !== browser && $0.isOpen }
-        guard !others.isEmpty else {
+        guard !others.isEmpty || browser.isPrivate else {  // Fork: a private one always goes
             // The last one: kept, tabs and all, and written down now.
             browser.shut = true
             browser.flushSession()
@@ -218,7 +218,7 @@ enum Browsers {
 
     private static func retire(_ browser: Browser) {
         let wasPrimary = browser === primary
-        closed.append((record(of: browser, rows: true), Date()))
+        if !browser.isPrivate { closed.append((record(of: browser, rows: true), Date())) }  // Fork: never reopened
         if closed.count > 10 { closed.removeFirst(closed.count - 10) }
         all.removeAll { $0 === browser }
         if #available(macOS 15.4, *) { Extensions.shared.detach(browser) }
@@ -264,7 +264,7 @@ enum Browsers {
         guard let primary else { return }
         var records = [record(of: primary, rows: false)]
         records[0].rows = [:]
-        for browser in all.dropFirst() { records.append(record(of: browser, rows: true)) }
+        for browser in all where browser !== primary && !browser.isPrivate { records.append(record(of: browser, rows: true)) }
         // Frozen before it goes to the Disk queue.
         let snapshot = records
         Disk.write(file, now: now) { try? JSONEncoder().encode(snapshot) }
