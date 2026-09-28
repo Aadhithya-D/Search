@@ -355,7 +355,8 @@ struct ContentView: View {
                 .background {
                     if framed {
                         RoundedRectangle(cornerRadius: pageCorner, style: .continuous)
-                            .fill(Palette.ground)
+                            // Fork: a bare card is a lighter shade of the space (Fork/EmptyCanvas.swift).
+                            .fill(bareFill)
                             .shadow(color: .black.opacity(0.10), radius: 3, y: 1)
                     }
                 }
@@ -408,7 +409,7 @@ struct ContentView: View {
     @ViewBuilder
     private var stage: some View {
         if let tab = browser.active {
-            Page(tab: tab, corner: pageCorner)
+            Page(tab: tab, corner: pageCorner, blankFill: bareFill)
                 // In the column's layout: a blank tab keeps its field in the
                 // middle of the page, and a click on the page puts away an
                 // address being typed in the column.
@@ -443,7 +444,9 @@ struct ContentView: View {
                 }
                 .animation(Motion.quick, value: browser.suggesting)
         } else {
-            Palette.ground
+            // Fork: no tab open — the space's lighter shade, not a black card
+            // (Fork/EmptyCanvas.swift).
+            bareFill
         }
     }
 

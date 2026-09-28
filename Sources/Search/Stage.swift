@@ -13,12 +13,15 @@ struct Page: View {
     @ObservedObject var tab: Tab
     /// The page's corners, when it sits as a card beside the column.
     var corner: CGFloat = 0
+    /// The new tab page's ground. The card's own, unless the fork paints a
+    /// lighter shade of the space (Fork/EmptyCanvas.swift).
+    var blankFill: Color = Palette.ground
 
     var body: some View {
         ZStack {
             // A blank tab has no page to fill the card, so the card is the
             // ground the field in the middle was made for.
-            if tab.isBlank { Palette.ground }
+            if tab.isBlank { blankFill }
 
             // A tab put down with ⌘W has no view, and asking for one here
             // would build an empty one a frame before the stage moves on.
