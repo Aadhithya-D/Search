@@ -107,7 +107,9 @@ struct Fold: View {
             // is its own title bar, and no band lies over its tabs.
             if prefs.sidebar || folding, browser.active?.immersed != true {
                 DragStrip()
-                    .frame(height: Fold.top)
+                    // Fork: once the lights are down, this band is their row
+                    // (Fork/TitleBand.swift).
+                    .frame(height: browser.titleBand ? TitleBand.height : Fold.top)
                     .frame(maxWidth: .infinity)
             }
             if folding, !prefs.sidebar, browser.peeking {
@@ -147,6 +149,8 @@ struct Fold: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity,
                alignment: onRight ? .topTrailing : .topLeading)
+        // Fork: the drag strip grows with the colour (Fork/TitleBand.swift).
+        .animation(Motion.glide, value: browser.titleBand)
         // Fork: a handle on the folded column's edge (Fork/FoldedColumn.swift).
         .overlay(alignment: onRight ? .trailing : .leading) {
             if prefs.sidebar, folding, !browser.peeking {
@@ -272,6 +276,17 @@ struct Fold: View {
         prefs.sidebar && prefs.sidePosition == .right
     }
 
+    /// Fork: the lights, and the space's colour under them, together
+    /// (Fork/TitleBand.swift). In full screen the buttons are macOS's, and
+    /// the page stays where it is.
+    private func setTop(_ near: Bool) {
+        let show = near && onRight && browser.active?.immersed != true
+            && browser.window?.styleMask.contains(.fullScreen) != true
+        if show != topNear { topNear = show }
+        guard browser.titleBand != show else { return }
+        withAnimation(Motion.glide) { browser.titleBand = show }
+    }
+
     private func resetPending() {
         arriving?.cancel()
         arriving = nil
@@ -288,7 +303,8 @@ struct Fold: View {
         } else {
             pointer.stop()
             if edgeNear { edgeNear = false }
-            if topNear { topNear = false }
+            // Fork: the colour goes back up with the lights (Fork/TitleBand.swift).
+            setTop(false)
         }
     }
 
@@ -311,7 +327,10 @@ struct Fold: View {
             let zone: CGFloat = topNear ? SideBar.topRow + 8 : Fold.top
             let near = inWindow && fromTop >= 0 && fromTop <= zone
                 && NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber
-            if near != topNear { topNear = near }
+            // Fork: the space's colour comes down with the lights (Fork/TitleBand.swift).
+            setTop(near)
+        } else {
+            setTop(false)
         }
         guard folding else { return pass() }
         let screen = NSEvent.mouseLocation
