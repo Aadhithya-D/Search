@@ -1,0 +1,110 @@
+# This fork
+
+A fork of [driceroland/Search](https://github.com/driceroland/Search) with an
+Arc-style sidebar: per-space colours and bookmarks, the address in the column,
+and a floating folded column. The tab strip across the top is left as upstream
+has it.
+
+## How it is kept
+
+- `main` is upstream plus one commit per feature, in the order below. Nothing
+  else. Every commit builds on its own.
+- Fork code lives in `Sources/Search/Fork/`. Upstream files only carry the
+  hooks listed per feature, and each hook is marked with a `Fork:` comment.
+- Updating: `git fetch upstream && git rebase upstream/main` (or a release
+  tag), then `swift build`. `git config rerere.enabled true` remembers how a
+  conflict was resolved.
+- `README.md` and `CONTRIBUTING.md` each carry a fork note at the very top,
+  and are otherwise upstream's; keep those notes there on a sync.
+- When upstream ships something that does the same job, compare, and if theirs
+  is as good, drop that commit (`git rebase -i`) or rebuild it on theirs. The
+  "Upstream overlap" column says where to look.
+- Releases are tagged `VERSION-fork.N` (`1.0.4-fork.1`); `VERSION` stays
+  upstream's.
+
+## Features
+
+Base: upstream `v1.0.5` (`a25d0db`, "Search 1.0.5").
+
+| # | Commit | Fork files | Hooks in upstream files | Upstream overlap |
+|---|---|---|---|---|
+| 1 | Pop-ups stand on a nearly solid ground | `ForkDesign.swift` | `.popGround()` on each popover (Extensions, SpaceSwipe, `BookmarkDoor`'s list and card) and the site card | — |
+| 2 | A space wears a colour of its own, and an emoji or a symbol (and later: Soft and Deep tones) | `SpaceThemes.swift` | `Space.tone`; two icons in `Spaces.icons`; `SpaceDot` and `SpaceMenu` draw `SpaceGlyph` | #262, #231 |
+| 3 | Each space keeps its own bookmarks | `BookmarksPerSpace.swift` | `Bookmarks` stores `[space: list]` (load/save read the old single list); `use` on start and switch in the window in front, and in `Front.set` when another window comes to the front; `forget` on delete | — |
+| 4 | Folders you make, and pages filed into them | `BookmarkFolders.swift` | On upstream's folders (1.0.4): `Bookmarks.reveal`; `detach`/`place`/`holds` not private; New Folder… in the Bookmarks menu and the list's foot (`askNewFolder`); tab menu › Add to Bookmarks | upstream folders #354 |
+| 5 | A bookmark opens as a page of its own (and later: clicked again, it keeps its place) | `BookmarkPages.swift` | `Tab.bookmark`, `Tab.aim`, `Session.Entry.bookmark`, `Browser.openBookmark`; `filedLast` after `reconcilePins` and in `arrangeGroupedTabs`; `tabs(in:)` and `shownTabs` leave them out; restore/close/move/insert keep to `rowTabs`/`rowEnd`; strip draws `rowTabs` | — |
+| 6 | The column wears its space's colour; the page is a card on it | `ColumnColour.swift` | On upstream's card (1.0.5: `cards`, `CardEdge`, `StageView.corner`): the window's ground, the column's and the floating column's are `Spaces.ground` with `Grain` in place of `Palette.frame`; the bookmarks bar is clear on it and inked by `groundScheme`; row colours via `SideTone` (also `SplitTabItem`, `GroupHeading` in the column); `paintChrome` colours the window | #262, #231; upstream's card (1.0.5) |
+| 7 | The column's first rows: lights with back/forward/reload, then the address | `SideAddress.swift`, `ExtensionsInline.swift` | `Lights.retarget` (and `Lights.centre` from it); `OfferList`; `AddressField(point:prompt:)`; `SiteCard(padded:reader:)` and public Row/Header/Separator; `Extensions.anchor(for:)` falls back to `fallbackAnchor`; ⌘L unfolds; raised field only in strip layout; `sideMin` 200; pin gap 6; `./bench site PATH controls` | #262, #298 |
+| 8 | Bookmarks in the column, in folders that open in place (and later: open folders kept in `Bookmarks.opened`; folded under the space's name) | `SideMarks.swift` | `SideBar(bookmarks:)` and its folder state; `rowsEnd` counts them; tab rows file on drag; the foot's bookmark door is gone in the column | #262 |
+| 9 | The column's foot: library and downloads, spaces, new space | `SideFoot.swift` | `Loot.hauls`; the download delegate calls `loot.start/name/end` beside upstream's `fetches`; Theme… on the space name; `FetchDoor` not in the column's foot | #330 |
+| 10 | A folded column shows a handle on its edge | `FoldedColumn.swift` | `Fold` tracks `edgeNear` and overlays `SideHandle` | #256, #243 |
+| 11 | The folded column floats as a card, lights inside it | `FoldedColumn.swift` | Fold styles the peeking column, its shadow cast by a plain card under it (as upstream's 1.0.5 is, for a smooth slide); `Lights.nudge`; reach includes `Fold.inset` | #252 |
+| 12 | Import another browser's profiles, each into a space | `ProfileImport.swift` | On upstream's per-profile readers: `Chromium.read(_:profile:passphrase:)`; `safeStorage` not private; Aside in `Chromium.known`; File › Import Profiles into Spaces…; `./bench profiles` | Bring Things Over (1.0.4) |
+| 13 | Closing the last open page lands on a new tab (see 31) | `LastTabClosed.swift` | `Browser.close` asks `closesLastPage` | — |
+| 14 | Site icons follow the column's tone | `IconSurface.swift` | `Favicons.dark` asks `surfaceDark`; `Browser.follow` calls `followIconSurface`; `relook` not private | — |
+| 15 | A site icon with nothing visible in it is no icon | `IconInk.swift` | `Favicons.square` and `known` check `hasInk` | — |
+| 16 | A build without Apple's passkey entitlement never offers passkeys | — | `Preferences` offers passkeys only when possible | — |
+| 17 | Bug fixes: sidebar edge, printing and PDFs, media downloads, address in the card | `ColumnEdge.swift`, `SavingPages.swift`, `AddressLetGo.swift` | Side's `edge` uses `ColumnEdge` (drag far past the minimum folds); `printPage` → `print(_:)`; `PageView.forkMenu` (Print…, Download Audio/Video) with `MediaRelay`; `edit()` peeks the folded column; `Fold` holds for `browser.editing`; `Browser.follow` → `followAddressClicks`. The PDF bar's save and the docked inspector are upstream's now | #290, #278 (both in 1.0.4) |
+| 18 | A tab's preview beside the column | `TabPreview.swift` | Row and pin `onHover`; `Browser.select` hides it; `Tab.coverPicture` | #24 (upstream's ⌃Tab switcher is another thing) |
+| 19 | Loading, said quietly | `Loading.swift` | `LoadLine` over the stage; `ProgressRing` in place of `Ring` in the column, the strip and the pins | — |
+| 20 | The keychain asks as little as it can | `QuietKeychain.swift` | `build.sh` signs with "Search Local Signing" when there is no Developer ID; `Vault.login(from:)` reads no secret and `secret(for:)` reads the one used; the sign-in check reads one; imports add only accounts not kept; the import sheet chooses what to bring. Upstream's list without secrets (`Kept`) is kept as it is | #237 (in 1.0.4) |
+| 21 | Session-only sign-ins outlast quitting | `SessionCookies.swift` | `Browser.init` calls `followSessionCookies` (first window); `didFinish` calls `SessionCookies.soon`; `Links.applicationShouldTerminate` waits for `keep` | — |
+| 22 | Long extension names are cut in the site menu | `ExtensionsInline.swift` | — | — |
+| 23 | A keyword and a space searches that site, its name in the field | `SearchKeywords.swift` | On upstream's site shortcuts (`Keyword`, Settings › General): `searchAliases` reads `prefs.keywords`; the fork's old `search.aliases` move over once (`withForkKeywords`); `Browser.searchAlias`, cleared where the field starts over; `submit` searches the keyword's site; ⌫ on empty gives it back | #188 (in 1.0.4) |
+| 24 | Clear closes the tabs under New Tab | `ClearLoose.swift` | The column's rows use `looseRule` above New Tab | — |
+| 25 | Pins show selected, open and put down | — | `PinSquare`: fill and border when selected, no fill when open, grey when put down | — |
+| 26 | Bookmark rows show open and closed | `SideMarks.swift` | `Preferences.strikeClosedMarks` and `greysClosed` with their switches in Settings › Tabs; `PinSquare` greys by the same switch | — |
+| 27 | Spaces wrap when swiped, over a column on either side | — | `SpaceSwipe.neighbor` and `slide(onward:)`; `Browser.spaceArrival`; the column's and the strip's pages show the neighbour around | #272 |
+| 28 | The last page closed can leave the window empty (a setting, on) | `LastTabClosed.swift` | `Preferences.emptiesWindow`; `Browser.close` calls `afterLastPage`; `submit` calls `show`; the session keeps "nothing open" as −1 (`session`, `restoreSession`, `loadRow`, `showRow`) | — |
+| 29 | A bookmark's page closed can be kept, with a minus to remove it (a setting, on) | `BookmarkPagesKept.swift`, `SideMarks.swift` | `Preferences.keepsBookmarkPages`; `Browser.close` calls `putDown(bookmarkPage:)`; `Browser.dismissBookmark`; the row's minus | — |
+| 30 | README and CONTRIBUTING: the fork's notes | — | Top of `README.md` and `CONTRIBUTING.md` | — |
+| 31 | With the column on the right, the lights stay in the window's corner and wait for the pointer | `SidePosition.swift` | `Lights.keep`'s centre stays left; the column's first row keeps no room for them on the right; `Fold` watches the top edge (`topNear`) and slides them up; `gutterTop` keeps the page's inset | Upstream's right-hand column (1.0.4) carries the lights in it |
+| 32 | A PDF prints as the document it is, from the PDF bar's button too | `SavingPages.swift` | Upstream's `printFrame` delegate hands a PDF to `print(_:)` | upstream print() (1.0.4) |
+
+Dropped at the 1.0.4 sync, as upstream now does the same: import bookmarks
+from an HTML file (Bring Things Over › File…), and the column on the right
+with its peek fix (Settings › Tabs; the fork keeps only its lights, 31).
+
+At the 1.0.5 sync: "Keep unhandled page keys quiet" dropped, upstream's
+`StageView.keyDown` (#402) being the same. Kept beside upstream's own, as
+the fork's are the ones used: 23 next to Site Search (Tab, off by default),
+which takes the fork's chip slot too; 35's isolation CSS next to upstream's
+Twitch fix (both turn off the video's ancestors' transforms); 37's Proton
+reply path next to upstream's relayed background messages (#383); 38 next
+to upstream's `fullscreenWatch`. Upstream's bookmarks bar is hidden while
+the column shows (8 has them there); the column's foot (9) replaces
+upstream's `SideFoot`, and `Loot` follows `relinquish` for pause and
+resume.
+
+Upstream PR numbers are pull requests on driceroland/Search as of 15 Oct
+2026. Recheck them before each sync; merged ones are the ones to compare
+against.
+
+## Signing
+
+Without a Developer ID, `build.sh` signs with "Search Local Signing", a
+code-signing certificate made on this Mac and kept in its login keychain. It
+gives every build the same identity, which the keychain goes by, so saved
+passwords and kept sign-ins don't ask again after each rebuild. Without it the
+build is ad-hoc, as upstream's is. To make one on another Mac: a self-signed
+certificate with the code-signing extended key usage, named exactly that,
+imported into the login keychain with access for `/usr/bin/codesign`.
+
+A fork build still reads upstream's update feed, but never installs from it:
+the updater only swaps in a build when this one carries a Developer ID team,
+and it doesn't.
+
+## Checking a sync
+
+```
+swift build
+SEARCH_PROBE=1 .build/debug/Search &
+./bench --test ui sidebar on
+./bench --test column /tmp/col.png 460
+./bench --test site /tmp/controls.png controls
+./bench --test ui folded on && ./bench --test ui peek on && ./bench --test fold /tmp/fold.png 500
+```
+
+Compare the pictures with the ones from before the sync. The fold picture is
+taken while the card may already be sliding away (no pointer over it in a
+test run); run the last line again if it is cut.
