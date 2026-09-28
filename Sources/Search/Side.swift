@@ -80,8 +80,11 @@ struct SideBar: View {
             // The lights and the doors at the other end are views of their
             // own and answer first.
             HStack(spacing: 0) {
-                DragStrip()
-                    .frame(width: 10 + lights)
+                // Fork: on the right the lights stay in the window's corner.
+                if !onRight {
+                    DragStrip()
+                        .frame(width: 10 + lights)
+                }
                 DragStrip()
             }
             .frame(height: SideBar.topRow)
@@ -91,7 +94,10 @@ struct SideBar: View {
                 // reload at the end of the same line, and the address as the
                 // row under them (Fork/SideAddress.swift).
                 HStack(spacing: 2) {
-                    Color.clear.frame(width: lights)
+                    // On the right the lights stay in the window's corner.
+                    if !onRight {
+                        Color.clear.frame(width: lights)
+                    }
                     Spacer(minLength: 4)
                     // Never wider than the column: a narrow one keeps the
                     // three doors and lets the extensions' button go — the
