@@ -81,11 +81,12 @@ final class Float {
     /// everywhere else.
     static var benchScreens: [NSRect]?
 
-    func lift(_ page: NSView) {
+    func lift(_ page: NSView, videoSize: NSSize = NSSize(width: 16, height: 9)) {
         guard panel == nil else { return }
         self.page = page
 
-        let size = NSSize(width: 440, height: 247)
+        // Fork: fit portrait videos too (Fork/FloatingVideo.swift).
+        let size = FloatingVideo.size(for: videoSize)
         let screen = NSScreen.main?.visibleFrame ?? .zero
         // Where it was last, at the size it was, if a screen still shows it;
         // otherwise the bottom right of this one.
@@ -95,6 +96,9 @@ final class Float {
             width: size.width,
             height: size.height
         )
+        // Fork: fit the video on its remembered monitor (Fork/FloatingVideo.swift).
+        let destination = FloatingVideo.screen(for: spot, among: NSScreen.screens.map(\.visibleFrame), fallback: screen)
+        spot = FloatingVideo.frame(spot, fitting: size, in: destination)
         if let away = Float.benchAway { spot.origin = away }
 
         let panel = Panel(
@@ -134,7 +138,8 @@ final class Float {
             keep(NSWindow.didEndLiveResizeNotification, panel),
             keep(NSApplication.willTerminateNotification, NSApp),
         ]
-        panel.minSize = NSSize(width: 260, height: 146)
+        panel.minSize = NSSize(width: min(260, 260 * size.width / size.height),
+                               height: min(260, 260 * size.height / size.width))
 
         // At the size the window opens at. Built at the default size and
         // then stretched to a remembered one, the page was laid out twice,
@@ -743,7 +748,10 @@ final class Float {
 
         private func resize(to width: CGFloat, from was: NSRect, around anchor: NSPoint? = nil) {
             guard let window, was.width > 0 else { return }
-            let limit = NSScreen.main?.visibleFrame.width ?? 1600
+            // Fork: portrait video resizing also respects the screen's height
+            // (Fork/FloatingVideo.swift).
+            let limit = FloatingVideo.resizeLimit(for: was, on: window.screen?.visibleFrame
+                ?? NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1600, height: 1000))
             // Keeps the shape: a video window that can be squashed is a video
             // window showing bars.
             let wide = min(max(window.minSize.width, width), limit * 0.85)
@@ -928,6 +936,8 @@ enum Isolate {
         'html.office-floating [data-office-float]::-webkit-media-controls {',
         'display:none !important}'
       ].join('');
+      // Fork: page styles and transformed Shorts containers (Fork/FloatingVideo.swift).
+      sheet.textContent += \(FloatingVideo.stylesScript);
       document.documentElement.classList.add('office-floating');
 
       // The mark has to be defended.
@@ -957,7 +967,8 @@ enum Isolate {
         if (again) again.setAttribute('data-office-float', '');
       }, 250);
 
-      return 'floating';
+      // Fork: the panel follows the video's own proportions (Fork/FloatingVideo.swift).
+      return {status:'floating', width:best.videoWidth, height:best.videoHeight};
     })();
     """
 
