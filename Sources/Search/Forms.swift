@@ -46,7 +46,9 @@ final class FormRelay: NSObject, WKScriptMessageHandler {
                     tab?.fieldFocused(nil)
                 }
             case "fullscreen":
-                tab?.immersed = body["on"] as? Bool ?? false
+                // Fork: page requests can fail; WebKit is authoritative
+                // (Fork/FullscreenPresentation.swift).
+                tab?.fullscreen.reconcile()
             default:
                 break
             }

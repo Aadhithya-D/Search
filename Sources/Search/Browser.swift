@@ -37,6 +37,9 @@ final class Browser: NSObject, ObservableObject {
     @Published var editingGroupID: UUID?
     @Published var activeID: Tab.ID? {
         didSet {
+            // Fork: reconcile the selected tab's chrome with WebKit's state
+            // (Fork/FullscreenPresentation.swift).
+            if activeID != oldValue { FullscreenPresentation.selected(in: self) }
             // The tab just left is the tab just looked at. Whether a tab has
             // gone unwatched long enough to sleep is counted from here, not
             // from when it was first picked.

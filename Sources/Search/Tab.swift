@@ -361,6 +361,8 @@ final class Tab: ObservableObject, Identifiable {
     @Published var typing = false
     /// True while the page has taken over the screen.
     @Published var immersed = false
+    // Fork: native fullscreen lifecycle (Fork/FullscreenPresentation.swift).
+    let fullscreen = FullscreenPresentation()
 
     /// True while this tab's page is out in the little window.
     @Published var floating = false
@@ -613,6 +615,8 @@ final class Tab: ObservableObject, Identifiable {
         controller.add(middles, contentWorld: Web.world, name: MiddleRelay.name)
         Shield.shared.protect(controller)
         built = web
+        // Fork: restore chrome after WebKit's native fullscreen lifecycle.
+        fullscreen.watch(web, tab: self)
         // A tab muted before it went to sleep wakes muted.
         if muted { Muter.set(true, on: web) }
         arm(hiding: veils)
@@ -1273,6 +1277,8 @@ final class Tab: ObservableObject, Identifiable {
     /// back-forward cache. The tab keeps its address; `web` builds again the
     /// next time anyone asks for it.
     private func discard() {
+        // Fork: stop watching fullscreen before releasing its page.
+        fullscreen.stop()
         watch = []
         ears.stop()
         guard let web = built else { return }
