@@ -112,6 +112,24 @@ extension Bookmarks {
         save()
     }
 
+    /// Use the destination's siblings, so the same operation also takes a
+    /// bookmark out of a folder or into another one without losing its tab.
+    func move(_ id: Bookmark.ID, beside target: Bookmark.ID, after: Bool) {
+        guard id != target, let place = path(to: target) else { return }
+        let parent = place.last?.id
+        let siblings = parent.flatMap { node($0)?.children } ?? roots
+        guard let index = siblings.firstIndex(where: { $0.id == target }) else { return }
+        move(id, into: parent, at: index + (after ? 1 : 0))
+    }
+
+    func adjacent(to id: Bookmark.ID, offset: Int) -> Bookmark.ID? {
+        guard let place = path(to: id) else { return nil }
+        let siblings = place.last?.children ?? roots
+        guard let index = siblings.firstIndex(where: { $0.id == id }),
+              siblings.indices.contains(index + offset) else { return nil }
+        return siblings[index + offset].id
+    }
+
     /// Two pages dropped one on the other become a folder, where the one
     /// underneath was sitting. A folder dropped on a page is not this: that
     /// one just moves.

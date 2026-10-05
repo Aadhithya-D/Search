@@ -217,6 +217,9 @@ struct SideMarks: View {
                         .foregroundStyle(Palette.hush)
                         .padding(.leading, indent(depth + 1) + SideBar.inset + 23)
                         .frame(maxWidth: .infinity, minHeight: SideBar.row, alignment: .leading)
+                        .onDrop(of: [.text], isTargeted: $overEmpty) { providers in
+                            take(providers, into: node.id, before: nil)
+                        }
                 } else {
                     // The rows call this folder back. AnyView is what lets a
                     // view mention itself without the compiler having to name
@@ -289,15 +292,25 @@ struct SideMarks: View {
             canAdd: browser.active?.isBlank == false,
             moveTargets: targets,
             moveTo: { bookmarks.move(node.id, into: $0) },
-            tint: colour ?? browser.space.colour
+            tint: colour ?? browser.space.colour,
+            moveUp: bookmarks.adjacent(to: node.id, offset: -1).map { target in
+                { bookmarks.move(node.id, beside: target, after: false) }
+            },
+            moveDown: bookmarks.adjacent(to: node.id, offset: 1).map { target in
+                { bookmarks.move(node.id, beside: target, after: true) }
+            },
+            moveOut: bookmarks.parent(of: node.id).map { parent in
+                { bookmarks.move(node.id, beside: parent, after: true) }
+            }
         ) {
             if let close { close() }
             bookmarks.remove(node.id)
         } openNew: {
             guard let text = node.url, let url = URL(string: text) else { return }
             _ = browser.open(url, foreground: true)
-        } dropped: { providers in
-            take(providers, into: folder ? node.id : nil, before: folder ? nil : node.id)
+        } dropped: { providers, landing in
+            take(providers, into: landing == .inside ? node.id : nil,
+                 before: landing == .inside ? nil : node.id, after: landing == .after)
         }
     }
 
@@ -315,20 +328,16 @@ struct SideMarks: View {
         }
     }
 
-    /// A bookmark dropped on a folder is filed into it; one dropped on a page
-    /// is placed just before that page. A tab dragged up from the list is not
+    /// A bookmark dropped in a folder's middle is filed into it; row edges
+    /// place it above or below that row. A tab dragged up from the list is not
     /// this drop — that gesture files the page on its own.
-    private func take(_ providers: [NSItemProvider], into folder: Bookmark.ID?, before sibling: Bookmark.ID?) -> Bool {
+    private func take(_ providers: [NSItemProvider], into folder: Bookmark.ID?, before sibling: Bookmark.ID?, after: Bool = false) -> Bool {
         guard live, let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) else { return false }
         provider.loadObject(ofClass: NSString.self) { object, _ in
             guard let text = object as? String, let id = UUID(uuidString: text) else { return }
             DispatchQueue.main.async {
                 if let sibling {
-                    // A page dropped on a page becomes a folder. Anything
-                    // else — a folder onto a page — takes that page's place.
-                    if self.bookmarks.combine(id, onto: sibling) == nil {
-                        self.bookmarks.move(id, before: sibling)
-                    }
+                    self.bookmarks.move(id, beside: sibling, after: after)
                 } else {
                     self.bookmarks.move(id, into: folder)
                     if let folder {
@@ -368,12 +377,16 @@ struct SideMarks: View {
         let moveTo: (Bookmark.ID?) -> Void
         /// The space's colour, which its folders are drawn in.
         let tint: Int
+        let moveUp: (() -> Void)?
+        let moveDown: (() -> Void)?
+        let moveOut: (() -> Void)?
         let remove: () -> Void
         let openNew: () -> Void
-        let dropped: ([NSItemProvider]) -> Bool
+        let dropped: ([NSItemProvider], BookmarkLanding) -> Bool
 
         @State private var hovering = false
-        @State private var over = false
+        @State private var landing: BookmarkLanding?
+        private var over: Bool { landing == .inside }
         @Environment(\.colorScheme) private var scheme
 
         /// From Adithya Sakaray's PR #1: the page on screen is full ink and
@@ -424,26 +437,24 @@ struct SideMarks: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(live || lit ? SideTone.chip(scheme, strong: true) : (over && !folder ? SideTone.chip(scheme, strong: true) : (hovering && !opened ? SideTone.chip(scheme, strong: false) : Color.clear)))
+                    .fill(live || lit ? SideTone.chip(scheme, strong: true) : (over ? SideTone.chip(scheme, strong: true) : (hovering && !opened ? SideTone.chip(scheme, strong: false) : Color.clear)))
             )
-            .overlay(alignment: .leading) {
-                // Dropping a page here makes a folder of the two. The icon
-                // arrives while the pointer is still deciding.
-                if over, !folder {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Palette.ink.opacity(0.7))
-                        .padding(.leading, 10)
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+            .overlay(alignment: landing == .after ? .bottom : .top) {
+                if landing == .before || landing == .after {
+                    Rectangle()
+                        .fill(Palette.ink.opacity(0.65))
+                        .frame(height: 2)
+                        .padding(.leading, SideBar.inset + CGFloat(depth) * 14)
+                        .allowsHitTesting(false)
                 }
             }
-            .scaleEffect(over && !folder ? 1.035 : 1)
-            .shadow(color: .black.opacity(over && !folder ? 0.12 : 0), radius: 8, y: 3)
             .contentShape(Rectangle())
             .onTapGesture(perform: act)
             .onHover { hovering = $0 }
             .onDrag { NSItemProvider(object: node.id.uuidString as NSString) }
-            .onDrop(of: [.text], isTargeted: $over, perform: dropped)
+            .onDrop(of: [.text], delegate: BookmarkRowDrop(
+                folder: folder, height: SideBar.row, landing: $landing, take: dropped
+            ))
             .overlay(alignment: .trailing) {
                 // A real view, not a SwiftUI button: the row's own tap was
                 // winning the click, so the cross reopened the page it had
@@ -480,6 +491,10 @@ struct SideMarks: View {
                 if let newFolder {
                     Button("New Folder", action: newFolder)
                 }
+                Divider()
+                Button("Move Up") { moveUp?() }.disabled(moveUp == nil)
+                Button("Move Down") { moveDown?() }.disabled(moveDown == nil)
+                if let moveOut { Button("Move Out of Folder", action: moveOut) }
                 Menu("Move to") {
                     Button("Top Level") { moveTo(nil) }
                     if !moveTargets.isEmpty {
