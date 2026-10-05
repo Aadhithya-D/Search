@@ -521,11 +521,12 @@ struct ContentView: View {
     /// bar is there.
     private var chrome: CGSize {
         let bar = barShown ? BookmarksBar.height : 0
+        // Fork: expand the frame with right-sidebar controls (Fork/RightSidebarTopBar.swift).
         if cards {
             return CGSize(width: sidebar ? browser.prefs.sideWidth : Metrics.cardGap,
-                          height: barShown ? bar : Metrics.cardGap)
+                          height: (barShown ? bar : Metrics.cardGap) + rightTopBarHeight)
         }
-        return CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + bar)
+        return CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + bar + rightTopBarHeight)
     }
 
     /// The page as a card on the window's ground: with the tabs down the

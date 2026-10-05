@@ -62,9 +62,9 @@ extension ContentView {
         browser.prefs.sidebar && browser.active?.immersed != true
     }
 
-    var gutter: CGFloat { framed ? 8 : 0 }
+    var gutter: CGFloat { framed ? Metrics.cardGap : 0 }
 
-    var pageCorner: CGFloat { framed ? 10 : 0 }
+    var pageCorner: CGFloat { framed ? Metrics.cardRadius : 0 }
 
     /// The frame round the page wears the space's own tone, as the column does.
     var groundScheme: ColorScheme {
@@ -72,5 +72,5 @@ extension ContentView {
     }
 
     /// The frame's top edge over the page.
-    var gutterTop: CGFloat { framed ? 8 : 0 }
+    var gutterTop: CGFloat { framed ? Metrics.cardGap : 0 }
 }

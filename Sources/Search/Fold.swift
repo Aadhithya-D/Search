@@ -70,7 +70,11 @@ struct Fold: View {
     /// Fork: the pointer is close enough to the column's edge for its handle.
     @State private var edgeNear = false
     /// Fork: the pointer is at the top, over a column on the right.
-    @State private var topNear = false
+    // Fork: share the reveal with the page frame (Fork/RightSidebarTopBar.swift).
+    private var topNear: Bool {
+        get { browser.rightTopRevealed }
+        nonmutating set { RightSidebarTopBar.reveal(newValue, in: browser) }
+    }
     @State private var pointer = Pointer()
 
     /// How near the edge the pointer has to be.
@@ -107,8 +111,12 @@ struct Fold: View {
             // is its own title bar, and no band lies over its tabs.
             if prefs.sidebar || folding, browser.active?.immersed != true {
                 DragStrip()
-                    .frame(height: Fold.top)
+                    // Fork: the revealed frame is also a window drag area —
+                    // over the page only, never over the column's first row,
+                    // whose buttons it took the clicks of.
+                    .frame(height: topNear ? RightSidebarTopBar.height : Fold.top)
                     .frame(maxWidth: .infinity)
+                    .padding(.trailing, onRight && !browser.folded ? prefs.sideWidth : 0)
             }
             if folding, !prefs.sidebar, browser.peeking {
                 // The row has no ground of its own: in the window it lies on
@@ -170,6 +178,7 @@ struct Fold: View {
             watch()
         }
         .onDisappear {
+            topNear = false  // Fork: RightSidebarTopBar.swift
             resetPending()
             pointer.stop()
         }
@@ -184,7 +193,10 @@ struct Fold: View {
         // Into full screen, the buttons are given back to macOS; out of it,
         // they go the way the fold says again.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
-            if (note.object as? NSWindow) === browser.window { hideLights() }
+            if (note.object as? NSWindow) === browser.window {
+                topNear = false  // Fork: macOS supplies its own fullscreen bar.
+                hideLights()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
             if (note.object as? NSWindow) === browser.window { hideLights() }
@@ -194,9 +206,9 @@ struct Fold: View {
             watch()
         }
         // Fork: the lights go into the floating card (Fork/FoldedColumn.swift).
-        .onChange(of: lightsInCard, initial: true) { _, card in
-            Lights.nudge(card ? CGSize(width: Fold.inset, height: Fold.inset) : .zero)
-        }
+        // And with the column on the right, up into the middle of the bar
+        // (Fork/RightSidebarTopBar.swift).
+        .onChange(of: lightsNudge, initial: true) { _, by in Lights.nudge(by) }
         // Back to the strip and then to the column again: the column comes
         // back as it rests — whole, not folded from a time nobody remembers,
         // unless Settings says it rests folded.
@@ -206,11 +218,14 @@ struct Fold: View {
             browser.peeking = false
         }
         .onChange(of: prefs.sidePosition) { _, _ in
+            topNear = false  // Fork: RightSidebarTopBar.swift
             resetPending()
             browser.peeking = false
             if let bar = Fold.titlebar { Fold.reset(bar, hidden: lightsOff) }
             watch()
         }
+        // Fork: don't retain the top bar when a page takes the screen.
+        .onChange(of: watching) { _, _ in watch() }
         .onChange(of: prefs.sideWidth) { _, _ in
             if browser.folded { hideLights() }
         }
@@ -257,6 +272,12 @@ struct Fold: View {
     /// they are sliding in or out with the card; they are off screen between.
     private var lightsInCard: Bool {
         prefs.sidebar && !onRight && browser.folded
+    }
+
+    private var lightsNudge: CGSize {
+        if lightsInCard { return CGSize(width: Fold.inset, height: Fold.inset) }
+        if onRight { return CGSize(width: 0, height: -RightSidebarTopBar.lift) }
+        return .zero
     }
 
     private var lightsOff: Bool {
@@ -313,8 +334,11 @@ struct Fold: View {
             let height = window.frame.size.height
             let fromTop = height - point.y
             let inWindow = point.x >= 0 && point.x < window.frame.size.width && point.y >= 0 && point.y < height
-            let zone: CGFloat = topNear ? SideBar.topRow + 8 : Fold.top
-            let near = inWindow && fromTop >= 0 && fromTop <= zone
+            let zone: CGFloat = topNear ? RightSidebarTopBar.height + 6 : Fold.top
+            // Over the page only: at the top of the column the pointer is
+            // after its own buttons, and the bar coming took their clicks.
+            let overPage = browser.folded || point.x < window.frame.size.width - prefs.sideWidth
+            let near = inWindow && overPage && fromTop >= 0 && fromTop <= zone
                 && NSWindow.windowNumber(at: screen, belowWindowWithWindowNumber: 0) == window.windowNumber
             if near != topNear { topNear = near }
         }
