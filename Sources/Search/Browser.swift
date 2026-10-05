@@ -60,6 +60,8 @@ final class Browser: NSObject, ObservableObject {
     }
 
     let tabSwitcher = TabSwitcher()
+    // Fork: room for right-sidebar window controls (Fork/RightSidebarTopBar.swift).
+    @Published var rightTopRevealed = false
 
     /// The tab whose page is currently out in the little window. Nothing
     /// floating means no window: the two are checked against each other rather

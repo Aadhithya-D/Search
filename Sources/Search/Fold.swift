@@ -70,7 +70,11 @@ struct Fold: View {
     /// Fork: the pointer is close enough to the column's edge for its handle.
     @State private var edgeNear = false
     /// Fork: the pointer is at the top, over a column on the right.
-    @State private var topNear = false
+    // Fork: share the reveal with the page frame (Fork/RightSidebarTopBar.swift).
+    private var topNear: Bool {
+        get { browser.rightTopRevealed }
+        nonmutating set { RightSidebarTopBar.reveal(newValue, in: browser) }
+    }
     @State private var pointer = Pointer()
 
     /// How near the edge the pointer has to be.
@@ -107,7 +111,8 @@ struct Fold: View {
             // is its own title bar, and no band lies over its tabs.
             if prefs.sidebar || folding, browser.active?.immersed != true {
                 DragStrip()
-                    .frame(height: Fold.top)
+                    // Fork: the revealed frame is also a window drag area.
+                    .frame(height: topNear ? SideBar.topRow : Fold.top)
                     .frame(maxWidth: .infinity)
             }
             if folding, !prefs.sidebar, browser.peeking {
@@ -165,6 +170,7 @@ struct Fold: View {
             watch()
         }
         .onDisappear {
+            topNear = false  // Fork: RightSidebarTopBar.swift
             resetPending()
             pointer.stop()
         }
@@ -179,7 +185,10 @@ struct Fold: View {
         // Into full screen, the buttons are given back to macOS; out of it,
         // they go the way the fold says again.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
-            if (note.object as? NSWindow) === browser.window { hideLights() }
+            if (note.object as? NSWindow) === browser.window {
+                topNear = false  // Fork: macOS supplies its own fullscreen bar.
+                hideLights()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { note in
             if (note.object as? NSWindow) === browser.window { hideLights() }
@@ -201,11 +210,14 @@ struct Fold: View {
             browser.peeking = false
         }
         .onChange(of: prefs.sidePosition) { _, _ in
+            topNear = false  // Fork: RightSidebarTopBar.swift
             resetPending()
             browser.peeking = false
             if let bar = Fold.titlebar { Fold.reset(bar, hidden: lightsOff) }
             watch()
         }
+        // Fork: don't retain the top bar when a page takes the screen.
+        .onChange(of: watching) { _, _ in watch() }
         .onChange(of: prefs.sideWidth) { _, _ in
             if browser.folded { hideLights() }
         }

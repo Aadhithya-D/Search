@@ -450,7 +450,8 @@ struct ContentView: View {
     /// What the column and the strip take from the page right now: animated
     /// as they come and go.
     private var chrome: CGSize {
-        CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + (barShown ? BookmarksBar.height : 0))
+        // Fork: expand the frame with right-sidebar controls (Fork/RightSidebarTopBar.swift).
+        CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + (barShown ? BookmarksBar.height : 0) + rightTopBarHeight)
     }
 
     /// The bookmarks bar is up: asked for, there are bookmarks, and the tabs
