@@ -34,7 +34,7 @@ enum TabPreview {
         if over {
             going?.cancel()
             going = nil
-            guard tab.id != browser.activeID, !tab.isBlank, browser.editingTab == nil, !browser.editing else {
+            guard !tab.isBlank, browser.editingTab == nil, !browser.editing else {
                 return hide()
             }
             coming?.cancel()
