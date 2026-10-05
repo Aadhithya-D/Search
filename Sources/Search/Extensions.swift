@@ -117,6 +117,9 @@ final class Extensions: NSObject, ObservableObject {
 
     private override init() {
         WKWebExtension.MatchPattern.registerCustomURLScheme(Extensions.scheme)
+        // Fork: Chrome's FTP and socket permission patterns
+        // (Fork/ExtensionCompatibility.swift).
+        ExtensionCompatibility.registerSchemes()
         // A test run keeps its extensions' storage apart, as it does its
         // cookies and passwords.
         let configuration: WKWebExtensionController.Configuration = Store.testing && !Store.ownContainer

@@ -40,7 +40,8 @@ enum ExtensionShims {
     /// every script and page an extension ships.
     nonisolated static let stamp = ".search-shim"
     nonisolated static let version: String = {
-        SHA256.hash(data: Data((script + PasskeyRelay.page).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined() + (Store.testing ? "-test" : "")
+        // Fork: reprepare installed scripts when compatibility fixes change.
+        SHA256.hash(data: Data((script + PasskeyRelay.page + ExtensionCompatibility.revision).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined() + (Store.testing ? "-test" : "")
     }()
 
     /// `fresh`: a package just unpacked or copied in. What only Search writes
@@ -58,6 +59,9 @@ enum ExtensionShims {
         let manifestURL = folder.appendingPathComponent("manifest.json")
         guard var manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
         else { throw Crx.Refused.unpack }
+
+        // Fork: redundant lexical globals (Fork/ExtensionCompatibility.swift).
+        try ExtensionCompatibility.prepare(folder)
 
         let script = shim(for: folder)
         try script.write(to: folder.appendingPathComponent(file), atomically: true, encoding: .utf8)
@@ -1065,6 +1069,8 @@ enum ExtensionShims {
         };
         checkWorker = page ? check : () => {};
         put(runtime, "sendMessage", (...args) => {
+          // Fork: ExtensionCompatibility.swift restores Proton's popup replies.
+          \#(ExtensionCompatibility.directProtonReplies)
           const callback = typeof args[args.length - 1] === "function" ? args.pop() : null;
           // Never heard back by the one that sends it, so said for it.
           if (!inContent) tell(typeof args[0] === "string" && args.length > 1 && typeof args[1] !== "function" ? args[1] : args[0], "passes");
@@ -1888,6 +1894,8 @@ enum ExtensionShims {
             if (missing.length && !(await native("permissions.request", [missing]))) return false;
           }
           if (!theirs.length && !origins.length) return true;
+          // Fork: ExtensionCompatibility.swift avoids requesting existing grants.
+          \#(ExtensionCompatibility.alreadyGrantedPermissions)
           // Asked from a click on the extension's button: when filling in
           // the tab it was given (mend) cost WebKit the click, Search
           // knows it was one and asks the same question.
@@ -2849,6 +2857,9 @@ enum ExtensionShims {
             guard !family.isEmpty, allowed(id, context: context).contains(family) else {
                 throw Unsupported(what: "The extension never asked for \u{201C}\(family)\u{201D}")
             }
+            // Fork: saved settings must not pretend to route VPN traffic
+            // (Fork/ExtensionCompatibility.swift).
+            if let actual = try ExtensionCompatibility.proxySetting(api) { return actual }
             return setting(api, first as? [String: Any] ?? [:], extension: id, owner: owner)
         }
 
