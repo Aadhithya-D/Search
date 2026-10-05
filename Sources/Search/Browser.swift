@@ -2648,14 +2648,15 @@ final class Browser: NSObject, ObservableObject {
         tab.web.evaluateInSearch(Isolate.on) { [weak self] answer in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                guard (answer as? String) == "floating" else {
+                // Fork: size the window to the video (Fork/FloatingVideo.swift).
+                guard let videoSize = FloatingVideo.dimensions(answer) else {
                     if !quietly { self.announce("Nothing is playing here") }
                     return
                 }
                 self.floating = tab.id
                 tab.floating = true
                 self.ownFloater()
-                self.floater.lift(tab.web)
+                self.floater.lift(tab.web, videoSize: videoSize)
             }
         }
     }
