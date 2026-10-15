@@ -25,18 +25,11 @@ enum ExtensionCompatibility {
     }
     """#
 
-    struct ProxyUnavailable: LocalizedError {
-        var errorDescription: String? {
-            "Search does not yet support extension-controlled proxies. The VPN connection was not applied."
-        }
-    }
-
-    static func proxySetting(_ api: String) throws -> [String: Any]? {
-        if api == "setting.set:proxy.settings" { throw ProxyUnavailable() }
-        if api == "setting.get:proxy.settings" {
-            return ["value": ["mode": "system"], "levelOfControl": "not_controllable"]
-        }
-        return nil
+    // A VPN's proxy: one server is sent to WebKit, anything else refused
+    // rather than pretending to route traffic (Fork/ExtensionProxy.swift).
+    @MainActor
+    static func proxySetting(_ api: String, _ details: [String: Any], extension id: String) throws -> [String: Any]? {
+        try ExtensionProxy.answer(api, details, extension: id)
     }
 
     // Search's shim exposes a non-configurable `browser` global, identical

@@ -108,6 +108,7 @@ enum Spaces {
         if let made = stores[id] { return made }
         let made = WKWebsiteDataStore(forIdentifier: id)
         if Store.keepsSignIns { Store.followSignIns(made) }
+        ExtensionProxy.dress(made)  // Fork: a VPN's proxy (Fork/ExtensionProxy.swift)
         stores[id] = made
         return made
     }

@@ -512,6 +512,7 @@ final class Extensions: NSObject, ObservableObject {
         // page, and a Mac kept awake on its behalf.
         ExtensionOffscreen.close(for: id)
         ExtensionCapture.shared.purge(id)
+        ExtensionProxy.forget(id)  // Fork: and its VPN's proxy (Fork/ExtensionProxy.swift)
         if let held = ExtensionShims.awake.removeValue(forKey: id) { IOPMAssertionRelease(held) }
         // Its ports read as gone only once WebKit has had a turn.
         DispatchQueue.main.async { ExtensionNative.stopOrphans() }

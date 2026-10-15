@@ -146,7 +146,10 @@ final class Preferences: ObservableObject {
     /// unless asked for - a private tab keeps nothing by default, extensions
     /// included, and some watch what a page does.
     @Published var extensionsInPrivate: Bool {
-        didSet { store.set(extensionsInPrivate, forKey: "extensions.private") }
+        didSet {
+            store.set(extensionsInPrivate, forKey: "extensions.private")
+            ExtensionProxy.privateChanged()  // Fork: Fork/ExtensionProxy.swift
+        }
     }
     /// Whether sites may ask for a passkey here. Off sends them to the
     /// password instead — the only thing that works in a build without

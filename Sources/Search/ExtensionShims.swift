@@ -1490,6 +1490,8 @@ enum ExtensionShims {
         "images", "javascript", "location", "microphone", "notifications", "plugins", "popups", "sound"]
         .map((n) => [n, contentSetting()])));
       put2("proxy", { settings: setting("proxy.settings"), onProxyError: event() });
+      // Fork: the proxy's sign-in, asked of the extension (Fork/ExtensionProxy.swift).
+      \#(ExtensionProxy.shim)
       put2("omnibox", { setDefaultSuggestion: () => {}, onInputStarted: event(), onInputChanged: event(),
         onInputEntered: event(), onInputCancelled: event(), onDeleteSuggestion: event() });
       // Screen recording (see ExtensionCapture.swift). Chrome's picker is
@@ -3414,7 +3416,7 @@ enum ExtensionShims {
             }
             // Fork: saved settings must not pretend to route VPN traffic
             // (Fork/ExtensionCompatibility.swift).
-            if let actual = try ExtensionCompatibility.proxySetting(api) { return actual }
+            if let actual = try ExtensionCompatibility.proxySetting(api, first as? [String: Any] ?? [:], extension: id) { return actual }
             return setting(api, first as? [String: Any] ?? [:], extension: id, owner: owner)
         }
 
