@@ -92,7 +92,10 @@ enum Spaces {
     static let changed = Notification.Name("SearchSpacesChanged")
 
     /// The space new tabs are made in: the one on screen.
-    @MainActor static var current = Space.firstID
+    @MainActor static var current = Space.firstID {
+        // Fork: each space its own pinned extensions (Fork/ExtensionPinsPerSpace.swift).
+        didSet { if current != oldValue, #available(macOS 15.4, *) { Extensions.shared.spaceChanged() } }
+    }
 
     /// Each space's store, made once: WebKit shares processes between views
     /// that ask for the same store object.

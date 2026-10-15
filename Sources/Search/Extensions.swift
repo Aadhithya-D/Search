@@ -735,11 +735,15 @@ final class Extensions: NSObject, ObservableObject {
     }
 
     func setPinned(_ id: String, _ on: Bool) {
-        guard let index = installed.firstIndex(where: { $0.id == id }) else { return }
-        installed[index].pinned = on
-        save()
+        guard installed.contains(where: { $0.id == id }) else { return }
+        // Fork: in the space in front only (Fork/ExtensionPinsPerSpace.swift).
+        pinHere(id, on)
         actionsChanged += 1
     }
+
+    /// Fork: another space in front, with pins of its own
+    /// (Fork/ExtensionPinsPerSpace.swift).
+    func spaceChanged() { actionsChanged += 1 }
 
     /// Reads what was unpacked, asks, and — on yes — moves it into place and
     /// loads it. On no, nothing is left behind.
@@ -1231,7 +1235,7 @@ final class Extensions: NSObject, ObservableObject {
                 icon: action.icon(for: CGSize(width: 16, height: 16)),
                 badge: action.badgeText,
                 enabled: action.isEnabled,
-                pinned: item.pinned ?? false
+                pinned: isPinned(item)  // Fork: Fork/ExtensionPinsPerSpace.swift
             )
         }
     }
@@ -1801,7 +1805,7 @@ struct ExtensionActions: View {
     let extensions: Extensions
 
     var body: some View {
-        let pinned = extensions.installed.first { $0.id == id }?.pinned ?? false
+        let pinned = extensions.isPinned(id)  // Fork: Fork/ExtensionPinsPerSpace.swift
         SwiftUI.Button(pinned ? "Unpin" : "Pin to Toolbar") { extensions.setPinned(id, !pinned) }
         if extensions.contexts[id]?.optionsPageURL != nil {
             SwiftUI.Button("Options…") { extensions.openOptions(id) }

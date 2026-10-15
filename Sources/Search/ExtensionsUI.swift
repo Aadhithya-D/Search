@@ -189,8 +189,9 @@ struct ExtensionsPage: View {
 
         @ViewBuilder
         private func actions(_ context: WKWebExtensionContext?) -> some View {
-            Button(item.pinned == true ? "Unpin" : "Pin to Toolbar") {
-                extensions.setPinned(item.id, !(item.pinned ?? false))
+            // Fork: pinned in this space (Fork/ExtensionPinsPerSpace.swift).
+            Button(extensions.isPinned(item) ? "Unpin" : "Pin to Toolbar") {
+                extensions.setPinned(item.id, !extensions.isPinned(item))
             }
             if context?.overrideNewTabPageURL != nil {
                 let on = Store.settings.object(forKey: "extensions.newtab.\(item.id)") as? Bool == true
