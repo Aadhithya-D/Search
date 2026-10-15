@@ -44,7 +44,8 @@ enum ExtensionShims {
     nonisolated private static let preparation = "2"
     nonisolated static let version: String = {
         // Fork: reprepare installed scripts when compatibility fixes change.
-        SHA256.hash(data: Data((script + PasskeyRelay.page + preparation + ExtensionCompatibility.revision).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined() + (Store.testing ? "-test" : "")
+        // Fork: reprepare Easy Switch's startup repair (Fork/EasySwitchCompatibility.swift).
+        SHA256.hash(data: Data((script + PasskeyRelay.page + preparation + ExtensionCompatibility.revision + EasySwitchCompatibility.revision).utf8)).prefix(8).map { String(format: "%02x", $0) }.joined() + (Store.testing ? "-test" : "")
     }()
 
     /// `fresh`: a package just unpacked or copied in. What only Search writes
@@ -65,6 +66,8 @@ enum ExtensionShims {
 
         // Fork: redundant lexical globals (Fork/ExtensionCompatibility.swift).
         try ExtensionCompatibility.prepare(folder)
+        // Fork: keep Easy Switch's background running (Fork/EasySwitchCompatibility.swift).
+        try EasySwitchCompatibility.prepare(folder)
 
         let script = shim(for: folder)
         try script.write(to: folder.appendingPathComponent(file), atomically: true, encoding: .utf8)
@@ -3395,6 +3398,10 @@ enum ExtensionShims {
         guard let browser = owner.browser else { throw Unsupported(what: "No browser window") }
         let first = args.first
         let id = context.uniqueIdentifier
+        // Fork: Easy Switch targets the displayed page (Fork/EasySwitchCompatibility.swift).
+        if api.hasPrefix("easySwitch.") {
+            return try EasySwitchCompatibility.answer(api, args: args, context: context, owner: owner)
+        }
 
         if api.hasPrefix("setting.") {
             // A browser setting (chrome.privacy…) belongs to the family its
