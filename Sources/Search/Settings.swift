@@ -471,6 +471,15 @@ struct SettingsPanel: View {
                 }
             }
             Rule()
+            // Fork: Fork/PinPeek.swift.
+            Line("Pins stay on their site", "As in Arc: a link from a pinned tab to another site opens in a panel over it, and the pin stays on its page. Links within the site go as usual.") {
+                Switch(on: $prefs.pinsPeek)
+            }
+            Rule()
+            Line("New tabs from links open in a peek", "A link that would open a new tab opens in a panel over the page instead. ⌘-click, the middle button and Open Link in New Tab still open a tab.") {
+                Switch(on: $prefs.linksPeek)
+            }
+            Rule()
             Line("Split View", "Show two tabs side by side. Drag a tab onto a page to pair them.") {
                 Switch(on: $prefs.splitView)
             }

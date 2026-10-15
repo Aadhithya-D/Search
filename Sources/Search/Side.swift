@@ -715,6 +715,14 @@ private struct PinSquare: View {
                     .fill(SideTone.chip(scheme, strong: false))
             }
         }
+        // Fork: the peek opened from it, while it is up (Fork/PinPeek.swift).
+        .overlay(alignment: .topTrailing) {
+            if browser.peekFrom == tab.id, let page = browser.peekTab {
+                PeekBadge(page: page, size: scale * 16 / 34)
+                    .offset(x: scale * 4 / 34, y: -scale * 4 / 34)
+            }
+        }
+        .animation(Motion.quick, value: browser.peekFrom)
         .contentShape(RoundedRectangle(cornerRadius: scale * 9 / 34, style: .continuous))
         .modifier(OneClick(double: live) {
             if live { browser.goHome(tab) } else { browser.select(tab) }
@@ -753,6 +761,9 @@ private struct SideRow: View {
     /// The speaker, which can be pressed, and so steps in beside the cross
     /// under the pointer rather than hiding beneath it as the ring does.
     private var speaker: Bool { !tab.loading && (tab.noisy || tab.muted) }
+    /// Fork: a pinned row with a peek opened from it wears the peek's icon
+    /// at its end, as a square does on its corner (Fork/PinPeek.swift).
+    private var peeking: Bool { !editing && tab.pin != nil && browser.peekFrom == tab.id && browser.peekTab != nil }
 
     var body: some View {
         HStack(spacing: 8) {
@@ -797,9 +808,14 @@ private struct SideRow: View {
                     .foregroundStyle(colour)
             }
 
-            if status {
+            if status || peeking {
                 Spacer(minLength: 2)
-
+            }
+            if peeking, let page = browser.peekTab {
+                PeekBadge(page: page, size: 16)
+                    .opacity(hovering && !status ? 0 : 1)
+            }
+            if status {
                 ZStack {
                     if tab.loading {
                         // Fork: filling with the page (Fork/Loading.swift).
@@ -816,7 +832,7 @@ private struct SideRow: View {
             }
         }
         .padding(.leading, SideBar.inset)
-        .padding(.trailing, status ? 7 : 10)
+        .padding(.trailing, status || peeking ? 7 : 10)
         .frame(height: 28)
         .frame(maxWidth: .infinity, alignment: .leading)
         // The title keeps its length under the pointer and fades out

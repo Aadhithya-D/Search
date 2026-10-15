@@ -523,6 +523,9 @@ final class Tab: ObservableObject, Identifiable {
     var home: URL?
     /// For a pin, which of the pins it is, in every window (see Pins.swift).
     var pinID: UUID?
+    /// Fork: for a pin, the site a link from it was just peeked at, and when
+    /// (Fork/PinPeek.swift).
+    var peeked: (site: String, at: Date)?
     /// For a pin, kept as a row under the squares rather than as a square:
     /// Arc's pinned list, below its favourites. Still a pin in every other
     /// way: put down by ⌘W, the same in every window, never in a group.

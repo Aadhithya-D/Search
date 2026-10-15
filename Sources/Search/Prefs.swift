@@ -226,6 +226,16 @@ final class Preferences: ObservableObject {
     @Published var peeksLinks: Bool {
         didSet { store.set(peeksLinks, forKey: "links.peek") }
     }
+    /// Fork: a link from a pin to another site opens in a peek, and the pin
+    /// stays on its page (Fork/PinPeek.swift). On unless turned off.
+    @Published var pinsPeek: Bool {
+        didSet { store.set(pinsPeek, forKey: "pins.peek") }
+    }
+    /// Fork: a link that asks for a new tab opens in a peek, from any tab
+    /// (Fork/PinPeek.swift). On unless turned off.
+    @Published var linksPeek: Bool {
+        didSet { store.set(linksPeek, forKey: "links.newPeek") }
+    }
     /// A link from another app opens in a small window of its own (see
     /// Little.swift). Off unless asked for.
     @Published var littleLinks: Bool {
@@ -471,6 +481,8 @@ final class Preferences: ObservableObject {
         waitsForPlay = store.bool(forKey: Preferences.waitsKey)
         installsUpdates = store.object(forKey: Updater.installKey) as? Bool ?? true
         peeksLinks = store.object(forKey: "links.peek") as? Bool ?? true
+        pinsPeek = store.object(forKey: "pins.peek") as? Bool ?? true  // Fork: Fork/PinPeek.swift
+        linksPeek = store.object(forKey: "links.newPeek") as? Bool ?? true  // Fork: Fork/PinPeek.swift
         littleLinks = store.bool(forKey: "links.little")
         bookmarksBar = store.bool(forKey: "bookmarks.bar")
         alwaysShowsDownloads = store.bool(forKey: "downloads.button")

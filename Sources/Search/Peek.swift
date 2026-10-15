@@ -17,6 +17,7 @@ extension Browser {
         let page = Tab(shy: tab.shy)
         prepare(page)
         page.go(to: url)
+        notePeek(url, from: tab)  // Fork: Fork/PinPeek.swift
         withAnimation(Motion.settle) { peekTab = page }
     }
 
@@ -79,6 +80,8 @@ struct PeekPanel: View {
             ZStack {
                 HStack(alignment: .top, spacing: 10) {
                     Page(tab: tab)
+                        // Fork: solid until the page draws (Fork/PinPeek.swift).
+                        .background(Palette.ground)
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12, style: .continuous)

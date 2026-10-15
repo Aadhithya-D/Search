@@ -1519,6 +1519,9 @@ final class Browser: NSObject, ObservableObject {
     var afterSpaceCreated: ((Space) -> Void)?
     /// A link's page, peeked at over this one (see Peek.swift).
     @Published var peekTab: Tab?
+    /// Fork: the tab the peek was opened from; a pin wears the peek's icon
+    /// while it is up (Fork/PinPeek.swift).
+    @Published var peekFrom: UUID?
     /// Which way the last change of space went: 1 to the next, -1 back.
     @Published var spaceStep = 1
 
@@ -4451,6 +4454,24 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
             DispatchQueue.main.async { [weak self] in self?.peek(url, from: from) }
             return
         }
+        // Fork: a plain click in a pin, on a link to another site, peeks
+        // (Fork/PinPeek.swift). Links into the page's frames are the page's
+        // own business. A link the site sends out by way of itself, as
+        // Google's results go by google.com/goto, is asked about again at
+        // the redirect, still as a click — by then webView.url is already
+        // where it is going, so the page it was on is the one in the history.
+        if action.navigationType == .linkActivated, action.targetFrame?.isMainFrame == true,
+           action.modifierFlags.intersection([.shift, .command, .option, .control]).isEmpty,
+           let from = tab(for: webView), peeksFromPin(url, in: from, on: webView.backForwardList.currentItem?.url) {
+            decisionHandler(.cancel)
+            DispatchQueue.main.async { [weak self] in self?.peek(url, from: from) }
+            return
+        }
+        if action.navigationType == .other, action.targetFrame?.isMainFrame == true,
+           let from = tab(for: webView), followsPeek(url, in: from) {
+            decisionHandler(.cancel)
+            return
+        }
         if action.navigationType == .linkActivated,
            ["http", "https"].contains(scheme),
            action.modifierFlags.contains(.command) {
@@ -4586,13 +4607,22 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
         // right-click on a picture on X, after following a link out of it,
         // did nothing at all. Each tab gets a controller of its own.
         configuration.userContentController = WKUserContentController()
-        let tab = Tab(shy: tab(for: webView)?.shy ?? false, configuration: configuration)
-        tab.popup = windowFeatures.width != nil || windowFeatures.height != nil
+        // The link menu's Open Link in New Tab, asked for in the last second.
+        // Read once: reading it takes it.
+        let behind = (webView as? PageView)?.takeBehind() == true
+        let popup = windowFeatures.width != nil || windowFeatures.height != nil
             || windowFeatures.toolbarsVisibility?.boolValue == false
+        // Fork: a new window asked for by a click opens in the peek rather
+        // than the row (Fork/PinPeek.swift).
+        if !behind, let source = tab(for: webView), peeksWindow(from: source, action: action, popup: popup) {
+            return peekWindow(configuration, from: source, going: action.request.url)
+        }
+        let tab = Tab(shy: tab(for: webView)?.shy ?? false, configuration: configuration)
+        tab.popup = popup
         tab.opener = from
         // The link menu's Open Link in New Tab: behind this tab, where a
         // ⌘-click's goes (see open(_:foreground:)).
-        if (webView as? PageView)?.takeBehind() == true, let source = self.tab(for: webView) {
+        if behind, let source = self.tab(for: webView) {
             prepare(tab)
             if prefs.usesTabGroups, !tab.shy, !tab.bench { tab.groupID = source.groupID }
             tabs.insert(tab, at: placeForNew())
