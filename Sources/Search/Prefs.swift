@@ -236,6 +236,11 @@ final class Preferences: ObservableObject {
     @Published var linksPeek: Bool {
         didSet { store.set(linksPeek, forKey: "links.newPeek") }
     }
+    /// Fork: the link menu's Open Link in New Tab goes to the tab, ⌥ leaving
+    /// it behind (Fork/LinkMenu.swift). Off, as upstream has it.
+    @Published var linkMenuFront: Bool {
+        didSet { store.set(linkMenuFront, forKey: "links.menuFront") }
+    }
     /// Fork: Arc's bar for ⌘T, ⌘L and ⌘K, with the tabs down the side
     /// (Fork/ArcBar.swift). On unless turned off.
     @Published var arcBar: Bool {
@@ -496,6 +501,7 @@ final class Preferences: ObservableObject {
         peeksLinks = store.object(forKey: "links.peek") as? Bool ?? true
         pinsPeek = store.object(forKey: "pins.peek") as? Bool ?? true  // Fork: Fork/PinPeek.swift
         linksPeek = store.object(forKey: "links.newPeek") as? Bool ?? true  // Fork: Fork/PinPeek.swift
+        linkMenuFront = store.bool(forKey: "links.menuFront")  // Fork: Fork/LinkMenu.swift
         arcBar = store.object(forKey: "field.arcBar") as? Bool ?? true  // Fork: Fork/ArcBar.swift
         engineSuggestions = store.object(forKey: "field.engineSuggestions") as? Bool ?? true  // Fork: Fork/ArcBar.swift
         barLook = store.string(forKey: "field.barLook").flatMap(BarLook.init) ?? .glass  // Fork: Fork/ArcBar.swift

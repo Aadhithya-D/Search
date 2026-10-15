@@ -4668,7 +4668,9 @@ extension Browser: WKNavigationDelegate, WKUIDelegate {
             || windowFeatures.toolbarsVisibility?.boolValue == false
         // Fork: a new window asked for by a click opens in the peek rather
         // than the row (Fork/PinPeek.swift).
-        if !behind, let source = tab(for: webView), peeksWindow(from: source, action: action, popup: popup) {
+        // Fork: and the menu's, to go to, is a tab (Fork/LinkMenu.swift).
+        let front = (webView as? PageView)?.takeFront() == true
+        if !behind, !front, let source = tab(for: webView), peeksWindow(from: source, action: action, popup: popup) {
             return peekWindow(configuration, from: source, going: action.request.url)
         }
         let tab = Tab(shy: tab(for: webView)?.shy ?? false, configuration: configuration)

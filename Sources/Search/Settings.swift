@@ -480,6 +480,11 @@ struct SettingsPanel: View {
                 Switch(on: $prefs.linksPeek)
             }
             Rule()
+            // Fork: Fork/LinkMenu.swift.
+            Line("Open Link in New Tab goes to it", "In a link's right-click menu, the new tab comes to the front. Hold ⌥ with the menu open to leave it behind instead.") {
+                Switch(on: $prefs.linkMenuFront)
+            }
+            Rule()
             // Fork: Fork/ArcBar.swift.
             Line("Arc-style address bar", "With the tabs down the side, ⌘T, New Tab and ⌘L bring up one bar over the window: open tabs to switch to, where you have been, and a search. Nothing opens until you choose.") {
                 Switch(on: $prefs.arcBar)

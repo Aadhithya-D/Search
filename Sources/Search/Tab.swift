@@ -1565,6 +1565,7 @@ final class PageView: WKWebView {
         forkMenu(menu)
         // Fork: no Open Link, only Open Link in New Tab (Fork/LinkMenu.swift).
         dropOpenLink(menu)
+        frontLinkMenu(menu, goesToIt: (uiDelegate as? Browser)?.prefs.linkMenuFront == true)
         if let item = menu.items.first(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierSearchWeb" }),
            let name = searchName?() {
             webSearch = (item.target, item.action)
@@ -1617,10 +1618,12 @@ final class PageView: WKWebView {
     /// marked to stay behind. WebKit asks for that tab a moment later, from
     /// the page's process (Browser's createWebViewWith), so the mark lasts a
     /// second and is used up by the first tab asked for.
-    private var openLink: (target: AnyObject?, action: Selector?) = (nil, nil)
+    // Fork: not private, and the front one's mark (Fork/LinkMenu.swift).
+    var openLink: (target: AnyObject?, action: Selector?) = (nil, nil)
     private var behindSince: Date?
+    var frontSince: Date?
 
-    @objc private func openLinkBehind(_ item: NSMenuItem) {
+    @objc func openLinkBehind(_ item: NSMenuItem) {
         guard let action = openLink.action else { return }
         behindSince = Date()
         NSApp.sendAction(action, to: openLink.target, from: item)
