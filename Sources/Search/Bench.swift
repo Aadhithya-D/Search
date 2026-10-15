@@ -2532,6 +2532,10 @@ final class Bench {
             if let on = request["history"] as? Bool { browser.recalling = on }
             if let on = request["downloads"] as? Bool { browser.hoarding = on }
             if let on = request["bookmarks"] as? Bool { browser.bookmarking = on }
+            // Fork: a shelf of the library, or off (Fork/Library.swift).
+            if let shelf = request["library"] as? String {
+                if let to = LibraryShelf(rawValue: shelf) { browser.openLibrary(to) } else { browser.closeLibrary() }
+            }
             // The Bring things over sheet: on, off, on at a browser by name,
             // or on for the extensions alone, as Settings › Extensions opens it.
             if let text = request["import"] as? String {

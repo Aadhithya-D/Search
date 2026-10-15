@@ -427,7 +427,14 @@ struct ContentView: View {
             // height, so the traffic lights sit in its own corner rather than
             // over the page.
             if sidebar {
-                SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks, onFrame: cards)
+                // Fork: the library in the column's place while it is open (Fork/Library.swift).
+                Group {
+                    if browser.library != nil {
+                        LibraryPanel(browser: browser, loot: browser.loot)
+                    } else {
+                        SideBar(browser: browser, prefs: browser.prefs, bookmarks: browser.bookmarks, onFrame: cards)
+                    }
+                }
                     .frame(maxHeight: .infinity, alignment: .top)
                     .transition(.move(edge: sideOnRight ? .trailing : .leading))
             }
@@ -459,6 +466,7 @@ struct ContentView: View {
         .animation(.easeOut(duration: 0.12), value: fullscreenTab?.id)
         .onAppear { if room == nil { room = chrome } }
         .onChange(of: chrome) { old, new in make(room: new, after: old) }
+        .modifier(LibraryCatches(browser: browser))  // Fork: Fork/Library.swift
     }
 
     // With Split View off, the stage is the one it always was: a single
@@ -528,10 +536,10 @@ struct ContentView: View {
         let bar = barShown ? BookmarksBar.height : 0
         // Fork: expand the frame with right-sidebar controls (Fork/RightSidebarTopBar.swift).
         if cards {
-            return CGSize(width: sidebar ? browser.prefs.sideWidth : Metrics.cardGap,
+            return CGSize(width: sidebar ? browser.columnRoom : Metrics.cardGap,  // Fork: Fork/Library.swift
                           height: (barShown ? bar : Metrics.cardGap) + rightTopBarHeight)
         }
-        return CGSize(width: sidebar ? browser.prefs.sideWidth : 0, height: band + bar + rightTopBarHeight)
+        return CGSize(width: sidebar ? browser.columnRoom : 0, height: band + bar + rightTopBarHeight)
     }
 
     /// The page as a card on the window's ground: with the tabs down the
@@ -631,10 +639,11 @@ struct ContentView: View {
     /// The panels. All the same kind of thing, so they are built the same way.
     @ViewBuilder
     private var panels: some View {
-        if browser.recalling {
+        // Fork: not while the library takes them (Fork/Library.swift).
+        if browser.recalling, !browser.libraryCatches(.history) {
             sheet { HistoryPanel(browser: browser) } close: { browser.recalling = false }
         }
-        if browser.hoarding {
+        if browser.hoarding, !browser.libraryCatches(.downloads) {
             sheet { DownloadsPanel(browser: browser, loot: browser.loot) }
                 close: { browser.hoarding = false }
         }
@@ -1281,6 +1290,11 @@ struct ContentView: View {
             // Fork: Arc's bar goes, and nothing else (Fork/ArcBar.swift).
             if browser.bar != nil {
                 browser.dismiss()
+                return true
+            }
+            // Fork: then the library, which ⌘W leaves open (Fork/Library.swift).
+            if browser.library != nil {
+                browser.closeLibrary()
                 return true
             }
             // A new tab never sent anywhere is itself what is open: Escape

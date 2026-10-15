@@ -504,6 +504,13 @@ struct SettingsPanel: View {
                     .fixedSize()
                 }
             }
+            if prefs.sidebar {
+                Rule()
+                // Fork: Fork/Library.swift.
+                Line("Library", "The door at the bottom left of the column opens downloads, pictures, spaces and history in the column's place, as in Zen. ⌘Y and ⇧⌘J open it too.") {
+                    Switch(on: $prefs.library)
+                }
+            }
             Rule()
             Line("Split View", "Show two tabs side by side. Drag a tab onto a page to pair them.") {
                 Switch(on: $prefs.splitView)

@@ -307,6 +307,9 @@ final class Browser: NSObject, ObservableObject {
     }
     /// Fork: Arc's bar is up, and what it was asked for (Fork/ArcBar.swift).
     @Published var bar: BarMode?
+    /// Fork: the library is open in the column's place, on this shelf
+    /// (Fork/Library.swift).
+    @Published var library: LibraryShelf?
     /// The site the list offers to search, for what has been typed so far
     /// (Settings › General › Search a site from the address field).
     @Published private(set) var siteOffer: SearchSite?
@@ -2367,7 +2370,7 @@ final class Browser: NSObject, ObservableObject {
     /// Another space's row. Its groups are the ones in its own file, the
     /// only place a space off screen keeps them: written without them, the
     /// space would lose every group it had.
-    private func writeSession(now: Bool, space: UUID, row: Parked) {
+    func writeSession(now: Bool, space: UUID, row: Parked) {  // Fork: not private (Fork/Library.swift)
         let groups = row.groups ?? readRow(space).groups
         writeRow(space, session(row.tabs, active: row.active, groups: groups, splits: row.splits), now: now)
     }

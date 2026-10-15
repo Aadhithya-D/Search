@@ -2,8 +2,9 @@ import SwiftUI
 import AppKit
 import WebKit
 
-// Fork: the column's foot, as in Arc — the library at the left (downloads,
-// with a ring while one is coming, then history, bookmarks, passwords,
+// Fork: the column's foot, as in Arc — the library at the left (Zen's
+// library, Fork/Library.swift, with a ring while a download is coming; with
+// that turned off, a menu of downloads, history, bookmarks, passwords,
 // extensions and settings), every space in the middle, and a new space at
 // the right. The space on screen, pressed again, opens its theme.
 
@@ -120,13 +121,18 @@ struct SpaceStrip: View {
 /// The space's colour, light or dark, and its icon: a symbol or an emoji.
 struct ThemePicker: View {
     @ObservedObject var browser: Browser
+    /// Another space's, from its card in the library (Fork/Library.swift);
+    /// the space on screen's otherwise.
+    var spaceID: UUID? = nil
     @Environment(\.colorScheme) private var scheme
     @State private var emoji = ""
 
     private let columns = Array(repeating: GridItem(.fixed(26), spacing: 6), count: 6)
     private let iconColumns = Array(repeating: GridItem(.fixed(26), spacing: 4), count: 7)
 
-    private var space: Space { browser.space }
+    private var space: Space {
+        spaceID.flatMap { id in browser.spaces.first { $0.id == id } } ?? browser.space
+    }
 
     /// The swatches in the tone the column will actually wear.
     private var shownDepth: CGFloat { space.depth(on: scheme == .dark) }
@@ -229,16 +235,23 @@ struct ThemePicker: View {
     }
 }
 
-/// The door at the foot's left: everything that is a panel of its own, and
-/// the downloads — a ring round it while one is coming, and the shelf of
-/// them opening from it when one starts.
+/// The door at the foot's left: the library, or with it turned off,
+/// everything that is a panel of its own — and the downloads, a ring round
+/// it while one is coming. With the library, a download starting drops into
+/// the door; without it, the shelf of them opens from it.
 struct Library: View {
     @ObservedObject var browser: Browser
     @ObservedObject var loot: Loot
     @State private var shelf = false
+    @State private var arriving = false
 
     var body: some View {
-        Door(icon: "books.vertical", on: shelf, help: "Library — downloads, history, bookmarks, passwords") {
+        LibraryDoor(on: shelf, lifted: arriving,
+                    help: browser.prefs.library ? "Library — downloads, media, spaces, history" : "Library — downloads, history, bookmarks, passwords") {
+            guard !browser.prefs.library else {
+                browser.openLibrary()
+                return
+            }
             PopMenu.show([
                 ("Downloads", "arrow.down.circle", { shelf = true }),
                 ("History", "clock", { browser.recalling = true }),
@@ -261,13 +274,70 @@ struct Library: View {
             }
         }
         .animation(Motion.quick, value: loot.hauls.isEmpty)
+        .overlay {
+            if arriving {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Palette.ink)
+                    .transition(.asymmetric(
+                        insertion: .offset(y: -70).combined(with: .opacity),
+                        removal: .scale(scale: 0.3).combined(with: .opacity)
+                    ))
+                    .allowsHitTesting(false)
+            }
+        }
+        .contextMenu {
+            if browser.prefs.library {
+                ForEach(LibraryShelf.allCases.filter { $0 != .spaces || browser.prefs.usesSpaces }) { item in
+                    Button(item.title) { browser.openLibrary(item) }
+                }
+            }
+        }
         .popover(isPresented: $shelf, arrowEdge: .top) {
             DownloadsShelf(browser: browser, loot: loot) { shelf = false }.popGround()
         }
         // A download arriving says so where it will be found.
         .onChange(of: loot.hauls.count) { old, now in
-            if now > old { shelf = true }
+            guard now > old else { return }
+            guard browser.prefs.library else {
+                shelf = true
+                return
+            }
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.7)) { arriving = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) {
+                withAnimation(Motion.quick) { arriving = false }
+            }
         }
+    }
+}
+
+/// The library's door: a Door, with Zen's mark in place of a symbol. Its
+/// star, dot and play mark rise under the pointer, and as a download drops in.
+private struct LibraryDoor: View {
+    var on = false
+    var lifted = false
+    let help: String
+    let act: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: act) {
+            LibraryGlyph(lift: hovering || lifted ? 0.9 : 0)
+                .frame(width: 15, height: 15)
+                .foregroundStyle(on ? Palette.ink : (hovering ? Palette.ink.opacity(0.7) : Palette.quiet))
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(on ? Palette.veilStrong : (hovering ? Palette.veil : .clear))
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help(help)
+        .animation(.spring(response: 0.3, dampingFraction: 0.6), value: hovering || lifted)
+        .animation(Motion.quick, value: on)
     }
 }
 

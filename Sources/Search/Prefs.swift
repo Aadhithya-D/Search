@@ -290,6 +290,11 @@ final class Preferences: ObservableObject {
     @Published var strikeClosedMarks: Bool {
         didSet { store.set(strikeClosedMarks, forKey: "bookmarks.strike") }
     }
+    /// Fork: the library door opens Zen's library in the column's place, and
+    /// ⌘Y and ⇧⌘J open it too (Fork/Library.swift). On unless turned off.
+    @Published var library: Bool {
+        didSet { store.set(library, forKey: "column.library") }
+    }
     /// Where a link goes, at the bottom of the page while the pointer is on
     /// it (see StatusLine.swift). On unless turned off.
     @Published var showsLinks: Bool {
@@ -509,6 +514,7 @@ final class Preferences: ObservableObject {
         bookmarksBar = store.bool(forKey: "bookmarks.bar")
         alwaysShowsDownloads = store.bool(forKey: "downloads.button")
         greysClosed = store.object(forKey: "column.greys") as? Bool ?? true
+        library = store.object(forKey: "column.library") as? Bool ?? true  // Fork: Fork/Library.swift
         emptiesWindow = store.object(forKey: "tabs.empty") as? Bool ?? true
         keepsBookmarkPages = store.object(forKey: "bookmarks.keep") as? Bool ?? true
         strikeClosedMarks = store.object(forKey: "bookmarks.strike") as? Bool ?? true
