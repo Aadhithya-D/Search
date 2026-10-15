@@ -1563,6 +1563,8 @@ final class PageView: WKWebView {
         }
         // Fork: Print…, and Download Audio / Video (Fork/SavingPages.swift).
         forkMenu(menu)
+        // Fork: no Open Link, only Open Link in New Tab (Fork/LinkMenu.swift).
+        dropOpenLink(menu)
         if let item = menu.items.first(where: { $0.identifier?.rawValue == "WKMenuItemIdentifierSearchWeb" }),
            let name = searchName?() {
             webSearch = (item.target, item.action)
