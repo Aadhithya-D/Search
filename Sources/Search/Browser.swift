@@ -300,8 +300,13 @@ final class Browser: NSObject, ObservableObject {
     /// without being asked — there is nothing else for that tab to show.
     @Published var editing = false {
         // The field put away takes its chip with it.
-        didSet { if !editing, siteChip != nil { siteChip = nil } }
+        didSet {
+            if !editing, siteChip != nil { siteChip = nil }
+            if !editing, bar != nil { bar = nil }  // Fork: Fork/ArcBar.swift
+        }
     }
+    /// Fork: Arc's bar is up, and what it was asked for (Fork/ArcBar.swift).
+    @Published var bar: BarMode?
     /// The site the list offers to search, for what has been typed so far
     /// (Settings › General › Search a site from the address field).
     @Published private(set) var siteOffer: SearchSite?
@@ -1727,7 +1732,7 @@ final class Browser: NSObject, ObservableObject {
         tabs += restored.tabs
         // Fork: a session left with no page open comes back that way
         // (Fork/LastTabClosed.swift).
-        if saved.active < 0, prefs.emptiesWindow, !restored.tabs.isEmpty {
+        if saved.active < 0, leavesWindowEmpty, !restored.tabs.isEmpty {
             releaseForeignBookmarks()
             return
         }
@@ -1736,6 +1741,13 @@ final class Browser: NSObject, ObservableObject {
         let front = saved.tabs.isEmpty || saved.active < 0 ? nil
             : restored.active.flatMap { id in tabs.first { $0.id == id } } ?? tabs.first { $0.pin == nil } ?? tabs.first
         guard let first = front else {
+            // Fork: nothing open is an empty window, with Arc's bar up
+            // (Fork/ArcBar.swift).
+            if usesBar {
+                releaseForeignBookmarks()
+                DispatchQueue.main.async { [weak self] in self?.openBar(.new) }
+                return
+            }
             // A blank tab costs nothing until it is asked for its page. Its
             // web view — and with it WebKit's helper processes — is built a
             // moment after the window is up, so that the first address typed
@@ -2014,8 +2026,11 @@ final class Browser: NSObject, ObservableObject {
             let row = reconcilePins(tabs, space: space)
             if row.map(\.id) != tabs.map(\.id) { tabs = row }
             if !tabs.contains(where: { $0.id == activeID }) {
-                activeID = tabs.first { $0.pin == nil }?.id ?? tabs.first?.id
-                if activeID == nil { newTab() }
+                // Fork: an empty window stays empty (Fork/LastTabClosed.swift).
+                if activeID != nil || !leavesWindowEmpty {
+                    activeID = tabs.first { $0.pin == nil }?.id ?? tabs.first?.id
+                    if activeID == nil { newTab() }
+                }
             }
             splits.removeAll { pair in
                 !pair.tabs.allSatisfy { id in tabs.contains { $0.id == id } }
@@ -2324,7 +2339,7 @@ final class Browser: NSObject, ObservableObject {
         }
         // Fork: nothing on screen is kept as none, not as the first pin
         // (Fork/LastTabClosed.swift).
-        if id == nil, prefs.emptiesWindow { active = -1 }
+        if id == nil, leavesWindowEmpty { active = -1 }
         let keptGroups = groups?.filter { group in
             entries.contains { $0.groupID == group.id }
         }
@@ -2774,9 +2789,14 @@ final class Browser: NSObject, ObservableObject {
             // bounced between the two instead of getting you out of them.
             let others = tabs.filter { $0.id != tab.id && !$0.asleep }
             let loose = others.filter { $0.pin == nil && $0.bookmark == nil }  // Fork: Fork/BookmarkPages.swift
-            if let back = (loose.isEmpty ? others : loose).max(by: { $0.touched < $1.touched }) {
+            if leavesWindowEmpty {
+                // Fork: a loose tab, an open page, or the empty window (Fork/LastTabClosed.swift).
+                if activeID == tab.id {
+                    if let back = landing(besides: tab.id) { select(back) } else { afterLastPage() }
+                }
+            } else if let back = (loose.isEmpty ? others : loose).max(by: { $0.touched < $1.touched }) {
                 select(back)
-            } else if activeID == tab.id || !prefs.emptiesWindow {
+            } else if activeID == tab.id || !leavesWindowEmpty {
                 // Fork: an empty window, or a new tab (Fork/LastTabClosed.swift).
                 afterLastPage()
             }
@@ -2793,7 +2813,7 @@ final class Browser: NSObject, ObservableObject {
         }
 
         // Fork: the last page of all, with the window to be left empty.
-        if tabs.count == 1, prefs.emptiesWindow {
+        if tabs.count == 1, leavesWindowEmpty {
             remember(tab, at: 0)
             tab.close()
             tabs = []
@@ -2825,8 +2845,13 @@ final class Browser: NSObject, ObservableObject {
         removeEmptyGroup(tab.groupID)
         // Fork: the last open page closed — a new tab, not a pin or a
         // bookmark's page (Fork/LastTabClosed.swift).
-        if activeID == tab.id, closesLastPage(tab) {
-            if prefs.emptiesWindow, let back = openPage(besides: tab.id) { select(back) } else { afterLastPage() }
+        if activeID == tab.id, partner == nil, leavesWindowEmpty,
+           !tabs.contains(where: { $0.pin == nil && $0.bookmark == nil }) {
+            // Fork: no loose tab left — an open page, or the empty window,
+            // never a pin or bookmark put down (Fork/LastTabClosed.swift).
+            if let back = landing(besides: tab.id) { select(back) } else { afterLastPage() }
+        } else if activeID == tab.id, closesLastPage(tab) {
+            if leavesWindowEmpty, let back = openPage(besides: tab.id) { select(back) } else { afterLastPage() }
         } else if activeID == tab.id {
             // The neighbour on the right, or the last one if there is no
             // right — through select(), same as everywhere else you land on
@@ -2901,6 +2926,12 @@ final class Browser: NSObject, ObservableObject {
         let onScreen = going.filter { visibleTabIDs.contains($0.id) }
         // Already an empty tab in front: that is where Clear leaves you.
         guard !onScreen.isEmpty, !(onScreen.count == 1 && onScreen[0].isBlank) else { return }
+        // Fork: no empty tab made — closing them lands where closing does,
+        // the empty window at the last (Fork/LastTabClosed.swift).
+        if leavesWindowEmpty {
+            for tab in onScreen { close(tab) }
+            return
+        }
         // After the others went, so it can't reuse an empty one among them.
         // It may still reuse one of yours, in a group: that one is yours to
         // keep, and only a tab Clear made is taken away again by the undo.
@@ -3713,7 +3744,9 @@ final class Browser: NSObject, ObservableObject {
     func loadRow(_ space: UUID) -> Parked {
         let saved = readRow(space)
         var restored = restoreRow(saved, space: space, groups: saved.groups ?? [])
-        if restored.active == nil { restored.active = restored.tabs.first?.id }
+        // Fork: a space left with nothing open stays so — taking the first
+        // tab woke its first pin each time (Fork/LastTabClosed.swift).
+        if restored.active == nil, !leavesWindowEmpty { restored.active = restored.tabs.first?.id }
         restored.groups = saved.groups
         return restored
     }
@@ -3767,7 +3800,7 @@ final class Browser: NSObject, ObservableObject {
         if let active, row.contains(where: { $0.id == active }) {
             activeID = active
         } else {
-            activeID = prefs.emptiesWindow ? nil : row.first?.id
+            activeID = leavesWindowEmpty ? nil : row.first?.id
         }
         releaseForeignBookmarks()  // Fork: Fork/BookmarkPages.swift
     }
@@ -4038,12 +4071,13 @@ final class Browser: NSObject, ObservableObject {
         cancelTabEdit()
         summoning = true
         clearKeyword()
+        if usesBar { bar = .new }  // Fork: in Arc's bar (Fork/ArcBar.swift)
         typed = ""
         editing = true
         focusRequest += 1
     }
 
-    private func guess() {
+    func guess() {  // Fork: not private (Fork/ArcBar.swift)
         guard !summoning else {
             offers = openPages(matching: typed)
             ending = nil
@@ -4080,7 +4114,7 @@ final class Browser: NSObject, ObservableObject {
         }
 
         guard !typed.trimmingCharacters(in: .whitespaces).isEmpty else {
-            offers = []
+            offers = bar != nil ? barOffers([]) : []  // Fork: Fork/ArcBar.swift
             ending = nil
             picked = nil
             siteOffer = nil
@@ -4109,6 +4143,7 @@ final class Browser: NSObject, ObservableObject {
         // point, and it would otherwise sit under a search for the word.
         let command = prefs.commandBar ? AddressCommand.matching(typed, in: self) : nil
         if let command { list.insert(.command(command), at: 0) }
+        if bar != nil { list = barOffers(list) }  // Fork: Fork/ArcBar.swift
         offers = list
         // Neither a page already open nor a command has an address to
         // complete towards. And with a command on top, Return runs it: a
@@ -4124,7 +4159,7 @@ final class Browser: NSObject, ObservableObject {
     /// What is open, most recently looked at first, filtered by what has been
     /// typed. On an empty field this is the whole point of the summon: it is
     /// the tab strip, except you read it only when you ask for it.
-    private func openPages(matching typed: String) -> [Suggestion] {
+    func openPages(matching typed: String) -> [Suggestion] {  // Fork: not private (Fork/ArcBar.swift)
         let needle = typed.trimmingCharacters(in: .whitespaces).lowercased()
         return tabs
             .filter { $0.id != activeID && !$0.isBlank }
@@ -4157,6 +4192,9 @@ final class Browser: NSObject, ObservableObject {
             command.run(on: self)
         } else if let id = offer.tab, let tab = tabs.first(where: { $0.id == id }) {
             select(tab)
+        } else if bar == .new || (bar != nil && active == nil) {
+            // Fork: the bar's new place is a new tab (Fork/ArcBar.swift).
+            open(offer.url, foreground: true)
         } else {
             (active ?? tabs.first)?.go(to: offer.url)
         }
@@ -4214,6 +4252,12 @@ final class Browser: NSObject, ObservableObject {
             parts.password = nil
             return parts.string ?? ""
         } ?? ""
+        // Fork: Arc's bar, with the address to edit; on a blank tab or none,
+        // a new place (Fork/ArcBar.swift).
+        if usesBar {
+            let page = active.map { !$0.isBlank } == true
+            return openBar(page ? .edit : .new, typing: page ? typed : "")
+        }
         // Fork: the address lives in the column. Folded, the column comes
         // out as the card it slides out as, and stays so while the address
         // is typed: docking it swapped the card for another column, and the
@@ -4231,6 +4275,13 @@ final class Browser: NSObject, ObservableObject {
         // Esc with a site in the field: the site goes, the field stays.
         if siteChip != nil {
             siteChip = nil
+            return
+        }
+        // Fork: the bar put away leaves everything as it was (Fork/ArcBar.swift).
+        if bar != nil {
+            clearKeyword()
+            editing = false
+            typed = ""
             return
         }
         // Esc on the empty page of a pair: the page isn't wanted after all.
@@ -4318,6 +4369,9 @@ final class Browser: NSObject, ObservableObject {
             // Opened behind the page by hand, as a ⌘-clicked link is: it may
             // wait to load (Settings › Tabs › Load background tabs…).
             open(url, foreground: front, from: active, mayWait: true)
+        } else if bar == .new {
+            // Fork: the bar's new place is a new tab (Fork/ArcBar.swift).
+            open(url, foreground: true)
         } else {
             // Fork: no page up — the address opens one (Fork/LastTabClosed.swift).
             show(url)

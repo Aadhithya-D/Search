@@ -236,6 +236,19 @@ final class Preferences: ObservableObject {
     @Published var linksPeek: Bool {
         didSet { store.set(linksPeek, forKey: "links.newPeek") }
     }
+    /// Fork: Arc's bar for ⌘T, ⌘L and ⌘K, with the tabs down the side
+    /// (Fork/ArcBar.swift). On unless turned off.
+    @Published var arcBar: Bool {
+        didSet { store.set(arcBar, forKey: "field.arcBar") }
+    }
+    /// Fork: the search engine's own suggestions in Arc's bar (Fork/ArcBar.swift).
+    @Published var engineSuggestions: Bool {
+        didSet { store.set(engineSuggestions, forKey: "field.engineSuggestions") }
+    }
+    /// Fork: how Arc's bar is drawn (Fork/ArcBar.swift).
+    @Published var barLook: BarLook {
+        didSet { store.set(barLook.rawValue, forKey: "field.barLook") }
+    }
     /// A link from another app opens in a small window of its own (see
     /// Little.swift). Off unless asked for.
     @Published var littleLinks: Bool {
@@ -483,6 +496,9 @@ final class Preferences: ObservableObject {
         peeksLinks = store.object(forKey: "links.peek") as? Bool ?? true
         pinsPeek = store.object(forKey: "pins.peek") as? Bool ?? true  // Fork: Fork/PinPeek.swift
         linksPeek = store.object(forKey: "links.newPeek") as? Bool ?? true  // Fork: Fork/PinPeek.swift
+        arcBar = store.object(forKey: "field.arcBar") as? Bool ?? true  // Fork: Fork/ArcBar.swift
+        engineSuggestions = store.object(forKey: "field.engineSuggestions") as? Bool ?? true  // Fork: Fork/ArcBar.swift
+        barLook = store.string(forKey: "field.barLook").flatMap(BarLook.init) ?? .glass  // Fork: Fork/ArcBar.swift
         littleLinks = store.bool(forKey: "links.little")
         bookmarksBar = store.bool(forKey: "bookmarks.bar")
         alwaysShowsDownloads = store.bool(forKey: "downloads.button")

@@ -48,7 +48,7 @@ struct SearchApp: App {
                 // Another window, with tabs of its own (see Windows.swift).
                 Button("New Window") { Browsers.newWindow() }
                     .shortcut("file.newWindow")
-                Button("New Tab") { browser.newTab() }
+                Button("New Tab") { browser.askNewTab() }  // Fork: Fork/ArcBar.swift
                     .shortcut("file.newTab")
                 // Fork: a private window (Fork/PrivateWindow.swift).
                 Button("New Private Window") { PrivateWindow.open(from: browser) }
@@ -412,7 +412,8 @@ struct ContentView: View {
             // top and on the column's side in the room (see chrome). Two pages
             // side by side are a card each (see PaneStage).
             stage
-                .modifier(CardEdge(on: cards && !browser.prefs.splitView))
+                // Fork: nothing open is no card, the space's colour alone (Fork/ArcBar.swift).
+                .modifier(CardEdge(on: cards && !browser.prefs.splitView && browser.active != nil))
                 .padding(.leading, sideOnRight ? farGap : 0)
                 .padding(.trailing, sideOnRight ? 0 : farGap)
                 .padding(.bottom, farGap)
@@ -464,7 +465,10 @@ struct ContentView: View {
     // Page that is never rebuilt from one tab to the next (see Stage.swift).
     @ViewBuilder
     private var stage: some View {
-        if browser.prefs.splitView {
+        if cards, browser.active == nil {
+            // Fork: nothing open — the card, empty, in the space's colour (Fork/ArcBar.swift).
+            EmptyCard(colour: spaceColour(browser.space, in: windowScheme), space: groundScheme)
+        } else if browser.prefs.splitView {
             SplitStage(browser: browser, corner: cards ? Metrics.cardRadius : 0)
         } else if let tab = browser.active {
             Page(tab: tab, corner: cards ? Metrics.cardRadius : 0)
@@ -472,7 +476,7 @@ struct ContentView: View {
                 // in the middle of the page, and a click on the page puts
                 // away an address being typed in the column (Fork/SideAddress.swift).
                 .overlay {
-                    if browser.prefs.sidebar, tab.isBlank {
+                    if browser.prefs.sidebar, tab.isBlank, browser.bar == nil {
                         Omnibox(browser: browser, over: false)
                     }
                 }
@@ -511,7 +515,8 @@ struct ContentView: View {
                 }
                 .animation(Motion.quick, value: browser.suggesting)
         } else {
-            Palette.ground
+            // Fork: nothing open — the space's colour, no card (Fork/ArcBar.swift).
+            if cards { Color.clear } else { Palette.ground }
         }
     }
 
@@ -700,6 +705,15 @@ struct ContentView: View {
                     .ignoresSafeArea()
             }
             .overlay { field }
+            // Fork: Arc's bar, over everything, in the space's light or dark
+            // (Fork/ArcBar.swift).
+            .overlay {
+                if browser.bar != nil {
+                    ArcBar(browser: browser, window: windowScheme, space: groundScheme)
+                        .ignoresSafeArea()
+                }
+            }
+            .animation(Motion.quick, value: browser.bar)
             .overlay { panels }
             .overlay { TabSwitcherOverlay(browser: browser, switcher: browser.tabSwitcher) }
             .overlay(alignment: .topTrailing) {
@@ -1264,6 +1278,11 @@ struct ContentView: View {
                 browser.picked = nil
                 return true
             }
+            // Fork: Arc's bar goes, and nothing else (Fork/ArcBar.swift).
+            if browser.bar != nil {
+                browser.dismiss()
+                return true
+            }
             // A new tab never sent anywhere is itself what is open: Escape
             // takes it away, back to the tab you were on, which is the one
             // touched last. Chosen before closing, so close() doesn't wake a
@@ -1420,7 +1439,7 @@ struct ContentView: View {
 
         switch key {
         case "t" where !shifted:
-            browser.newTab()
+            browser.askNewTab()  // Fork: Fork/ArcBar.swift
         case "t" where shifted:
             browser.reopen()
         case "c" where shifted:

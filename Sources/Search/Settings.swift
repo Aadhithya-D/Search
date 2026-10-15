@@ -480,6 +480,26 @@ struct SettingsPanel: View {
                 Switch(on: $prefs.linksPeek)
             }
             Rule()
+            // Fork: Fork/ArcBar.swift.
+            Line("Arc-style address bar", "With the tabs down the side, ⌘T, New Tab and ⌘L bring up one bar over the window: open tabs to switch to, where you have been, and a search. Nothing opens until you choose.") {
+                Switch(on: $prefs.arcBar)
+            }
+            if prefs.arcBar {
+                Line("Search suggestions", "What you type in the bar is sent to your search engine as you type, for its suggestions. Never from a private window.") {
+                    Switch(on: $prefs.engineSuggestions)
+                }
+                Line("Bar style", "Glass shows the page through, washed with the space's colour.") {
+                    Picker("", selection: $prefs.barLook) {
+                        ForEach(BarLook.allCases) { look in
+                            Text(look.title).tag(look)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .fixedSize()
+                }
+            }
+            Rule()
             Line("Split View", "Show two tabs side by side. Drag a tab onto a page to pair them.") {
                 Switch(on: $prefs.splitView)
             }

@@ -27,12 +27,26 @@ extension Browser {
             .max(by: { $0.touched < $1.touched })
     }
 
+    /// Where closing the page on screen lands when the window may be left
+    /// empty: a loose tab, the last looked at; else a pin or a bookmark's
+    /// page that is still open; else nothing. Never a page put down, which
+    /// would wake only to be closed in turn — closing a bookmark's page woke
+    /// a pin, closing that woke the next, and the window never emptied.
+    func landing(besides id: Tab.ID) -> Tab? {
+        let others = tabs.filter { $0.id != id }
+        let loose = others.filter { $0.pin == nil && $0.bookmark == nil }
+        let awake = others.filter { !$0.asleep }
+        return (loose.isEmpty ? awake : loose).max(by: { $0.touched < $1.touched })
+    }
+
     /// Nothing left to show: an empty window, or a new tab — as Settings says.
     func afterLastPage() {
-        guard prefs.emptiesWindow else { return newTab() }
+        guard leavesWindowEmpty else { return newTab() }
         activeID = nil
         typed = ""
         editing = false
+        // Fork: with Arc's bar, it comes up over the empty window (Fork/ArcBar.swift).
+        if usesBar { DispatchQueue.main.async { [weak self] in self?.openBar(.new) } }
     }
 
     /// An address with no page up opens one; with a page up, it goes there.

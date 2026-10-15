@@ -261,7 +261,7 @@ private struct SiteIcon: View {
 
 /// The site Tab put in the field: its icon and name, in the field's grey,
 /// before what is typed.
-private struct SiteChip: View {
+struct SiteChip: View {  // Fork: not private (Fork/ArcBar.swift)
     let site: SearchSite
     var body: some View {
         HStack(spacing: 6) {
@@ -281,7 +281,7 @@ private struct SiteChip: View {
 }
 
 /// "Search Reddit", first in the list, with the key that takes it.
-private struct SiteOfferRow: View {
+struct SiteOfferRow: View {  // Fork: not private (Fork/ArcBar.swift)
     let site: SearchSite
     @State private var hovering = false
     var body: some View {

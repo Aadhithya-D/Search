@@ -607,7 +607,7 @@ struct SideBar: View {
     private static let footHeight: CGFloat = 26 + 12
 
     private var newTab: some View {
-        Quiet(icon: "plus", title: "New Tab", height: SideBar.row) { browser.newTab() }
+        Quiet(icon: "plus", title: "New Tab", height: SideBar.row) { browser.askNewTab() }  // Fork: Fork/ArcBar.swift
             .padding(.top, SideBar.gap)
     }
 

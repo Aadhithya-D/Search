@@ -146,7 +146,7 @@ struct Command: Identifiable {
         Command("app.passwords", "Passwords…", .app, KeyCombo("l", option: true)) { $0.managing = true },
 
         Command("file.newWindow", "New Window", .file, KeyCombo("n")) { _ in Browsers.newWindow() },
-        Command("file.newTab", "New Tab", .file, KeyCombo("t")) { $0.newTab() },
+        Command("file.newTab", "New Tab", .file, KeyCombo("t")) { $0.askNewTab() },  // Fork: Fork/ArcBar.swift
         Command("file.newPrivateTab", "New Private Window", .file, KeyCombo("n", shift: true)) { PrivateWindow.open(from: $0) },  // Fork
         Command("file.reopen", "Reopen Closed Tab", .file, KeyCombo("t", shift: true)) { $0.reopen() },
         Command("file.openAddress", "Open Address…", .file, KeyCombo("l")) { $0.edit() },

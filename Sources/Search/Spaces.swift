@@ -232,7 +232,8 @@ extension Browser {
             restoreSession()
         }
         landIfHome()  // Fork: Fork/FloatAcrossSpaces.swift
-        editing = active?.isBlank ?? true
+        // Fork: with Arc's bar, an empty space waits for New Tab (Fork/ArcBar.swift).
+        editing = active?.isBlank ?? !usesBar
         typed = ""
         askFocus()
         // Beside the space's icon when the tabs are on screen (SpaceDot);

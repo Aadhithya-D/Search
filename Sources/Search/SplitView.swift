@@ -108,7 +108,7 @@ private struct PaneLayers: View {
             // the stage's.
             Page(tab: tab, holdsPage: false)
 
-            if browser.fieldShowing && focused {
+            if browser.fieldShowing && focused && browser.bar == nil {  // Fork: Fork/ArcBar.swift
                 Omnibox(browser: browser, over: !tab.isBlank, fitted: true)
                     .transition(.scale(scale: 0.97).combined(with: .opacity))
             }

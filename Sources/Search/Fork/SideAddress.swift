@@ -37,7 +37,7 @@ struct SideAddress: View {
     var body: some View {
         pill
         .overlay(alignment: .top) {
-            if browser.fieldShowing, browser.active?.isBlank != true, !browser.offers.isEmpty {
+            if typingHere, !browser.offers.isEmpty {
                 OfferList(browser: browser)
                     .padding(.top, 40)
                     .zIndex(2)
@@ -99,12 +99,13 @@ struct SideAddress: View {
         .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .onTapGesture {
             guard !typingHere else { return }
-            if browser.active?.isBlank == true { browser.askFocus() } else { browser.edit() }
+            if browser.active?.isBlank == true, !browser.usesBar { browser.askFocus() } else { browser.edit() }
         }
     }
 
+    /// Never with Arc's bar, which takes all typing (Fork/ArcBar.swift).
     private var typingHere: Bool {
-        browser.fieldShowing && browser.active?.isBlank != true
+        !browser.usesBar && browser.fieldShowing && browser.active?.isBlank != true
     }
 
     /// The host, as the column says it. The field, once open, has the rest.
