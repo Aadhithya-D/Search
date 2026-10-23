@@ -67,6 +67,8 @@ struct SearchApp: App {
                     .shortcut("file.import")
                 // Fork: each profile into a space of its own (Fork/ProfileImport.swift).
                 Button("Import Profiles into Spaces…") { browser.askToImportProfiles() }
+                // Fork: every kept password to a CSV (Fork/PasswordExport.swift).
+                Button("Export Passwords…") { browser.exportPasswords() }
                 Divider()
                 Button("Close Tab") { browser.closeFront() }
                     .shortcut("file.closeTab")
